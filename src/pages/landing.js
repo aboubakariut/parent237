@@ -32,22 +32,22 @@ export async function renderLanding(root) {
 
       <section class="features">
         <div class="feature-card">
-          <div class="feature-icon">🎭</div>
+          <div class="feature-icon"><i class="fa-solid fa-masks-theater"></i></div>
           <h3>Situations vécues, pas des textes à lire</h3>
           <p>Scènes animées et narration audio : accessible même aux parents peu alphabétisés.</p>
         </div>
         <div class="feature-card">
-          <div class="feature-icon">📶</div>
+          <div class="feature-icon"><i class="fa-solid fa-wifi"></i></div>
           <h3>Pensé pour le réseau faible</h3>
           <p>L'app s'installe et continue de fonctionner sans connexion, une fois ouverte une première fois.</p>
         </div>
         <div class="feature-card">
-          <div class="feature-icon">💬</div>
+          <div class="feature-icon"><i class="fa-brands fa-whatsapp"></i></div>
           <h3>Diffusion communautaire</h3>
           <p>Chaque parent qui termine un module peut le partager en un geste sur WhatsApp.</p>
         </div>
         <div class="feature-card">
-          <div class="feature-icon">📊</div>
+          <div class="feature-icon"><i class="fa-solid fa-chart-line"></i></div>
           <h3>Suivi pour les facilitateurs</h3>
           <p>Un tableau de bord anonymisé, filtré par zone, pour mesurer l'impact réel du programme.</p>
         </div>

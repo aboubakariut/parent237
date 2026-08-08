@@ -1,4 +1,121 @@
 -- À exécuter dans Supabase > SQL Editor (projet gratuit)
+-- Ordre important : zones doit exister avant profiles (clé étrangère).
+
+-- ---------- Table des zones officielles ----------
+-- Les codes de zone ne sont PAS du texte libre saisi par l'inscrit : ils
+-- viennent d'une liste contrôlée par l'admin. Ça évite les doublons/fautes de
+-- frappe et empêche quelqu'un d'inventer un code de zone qui n'existe pas.
+create table if not exists zones (
+  code text primary key,
+  label text not null,
+  created_at timestamptz default now()
+);
+
+alter table zones enable row level security;
+
+-- Lecture publique : le formulaire d'inscription (accessible sans compte)
+-- doit pouvoir proposer la liste des zones dans un menu déroulant.
+-- Ce ne sont que des noms de zones administratives, aucune donnée sensible.
+create policy "anyone can read zones"
+  on zones for select
+  to anon, authenticated
+  using (true);
+
+-- Zones de départ pour le pilote (l'admin peut en ajouter depuis /admin).
+insert into zones (code, label) values
+  ('YDE-EFOULAN-01', 'Yaoundé — Efoulan'),
+  ('YDE-MFOUNDI-02', 'Yaoundé — Mfoundi'),
+  ('DLA-WOURI-01', 'Douala — Wouri'),
+  ('RUR-EST-01', 'Zone rurale — Région de l''Est (pilote)')
+on conflict (code) do nothing;
+
+-- ---------- Table des profils (facilitateurs / éditeurs / admins, avec compte) ----------
+-- `status` est le verrou anti-usurpation : un compte fraîchement inscrit est
+-- 'en_attente' et NE VOIT AUCUNE donnée réelle tant qu'un admin ne l'a pas
+-- approuvé ('valide'). S'auto-déclarer facilitateur ne suffit donc pas à voir
+-- les données d'une zone.
+create table if not exists profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  full_name text,
+  role text not null check (role in ('facilitateur','editeur','admin')) default 'facilitateur',
+  status text not null check (status in ('en_attente','valide','refuse')) default 'en_attente',
+  zone_code text references zones(code),
+  created_at timestamptz default now()
+);
+
+alter table profiles enable row level security;
+
+-- Chacun peut créer son propre profil à l'inscription — MAIS le "with check"
+-- verrouille les colonnes sensibles : impossible de s'auto-déclarer autre chose
+-- que 'facilitateur' / 'en_attente', même en appelant l'API directement en
+-- contournant le formulaire (donc même quelqu'un qui lit ce code ne peut pas
+-- s'auto-promouvoir admin ou se marquer "validé").
+create policy "self-signup is locked to facilitateur + en_attente"
+  on profiles for insert
+  to authenticated
+  with check (
+    auth.uid() = id
+    and role = 'facilitateur'
+    and status = 'en_attente'
+  );
+
+create policy "users can view own profile"
+  on profiles for select
+  to authenticated
+  using (auth.uid() = id);
+
+-- Seuls les admins APPROUVÉS peuvent voir la liste complète des profils
+-- (nécessaire pour la file d'approbation et l'annuaire des facilitateurs).
+create policy "admins can view all profiles"
+  on profiles for select
+  to authenticated
+  using (
+    exists (
+      select 1 from profiles p
+      where p.id = auth.uid() and p.role = 'admin' and p.status = 'valide'
+    )
+  );
+
+-- Un utilisateur peut modifier des détails de son propre profil, mais jamais
+-- se donner un autre rôle ou se valider lui-même.
+create policy "users can update own profile basics"
+  on profiles for update
+  to authenticated
+  using (auth.uid() = id)
+  with check (auth.uid() = id and role = 'facilitateur');
+
+-- Seuls les admins approuvés peuvent changer le rôle/statut d'un autre compte
+-- (c'est le mécanisme d'approbation : passer 'en_attente' à 'valide').
+create policy "admins can update any profile"
+  on profiles for update
+  to authenticated
+  using (
+    exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'admin' and p.status = 'valide')
+  )
+  with check (
+    exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'admin' and p.status = 'valide')
+  );
+
+create policy "admins manage zones"
+  on zones for insert
+  to authenticated
+  with check (
+    exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'admin' and p.status = 'valide')
+  );
+
+create policy "admins update zones"
+  on zones for update
+  to authenticated
+  using (
+    exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'admin' and p.status = 'valide')
+  );
+
+create policy "admins delete zones"
+  on zones for delete
+  to authenticated
+  using (
+    exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'admin' and p.status = 'valide')
+  );
 
 -- ---------- Table des complétions (remplie par les parents, sans compte) ----------
 create table if not exists completions (
@@ -11,58 +128,29 @@ create table if not exists completions (
   created_at timestamptz default now()
 );
 
--- ---------- Table des profils (facilitateurs / éditeurs / admins, avec compte) ----------
-create table if not exists profiles (
-  id uuid primary key references auth.users(id) on delete cascade,
-  full_name text,
-  role text not null check (role in ('facilitateur','editeur','admin')) default 'facilitateur',
-  zone_code text,
-  created_at timestamptz default now()
-);
-
 alter table completions enable row level security;
-alter table profiles enable row level security;
 
--- ---------- Policies : completions ----------
 -- Un parent (visiteur anonyme, sans compte) peut seulement AJOUTER sa progression.
 create policy "anon can insert completion"
   on completions for insert
   to anon
   with check (true);
 
--- Lecture réservée aux comptes connectés (facilitateur/admin), filtrée par zone :
+-- Lecture réservée aux comptes APPROUVÉS (status = 'valide'), filtrée par zone :
 -- un facilitateur ne voit que SA zone, un admin voit tout. C'est Postgres qui
 -- applique cette règle, pas le code JS — donc infalsifiable depuis le navigateur.
-create policy "facilitators see own zone, admins see all"
+-- Un compte fraîchement auto-inscrit ('en_attente') ne matche jamais cette règle.
+create policy "approved facilitators see own zone, admins see all"
   on completions for select
   to authenticated
   using (
     exists (
       select 1 from profiles p
       where p.id = auth.uid()
+        and p.status = 'valide'
         and (p.role = 'admin' or p.zone_code = completions.zone_code)
     )
   );
-
--- ---------- Policies : profiles ----------
--- Chacun peut créer son propre profil à l'inscription (jamais celui d'un autre).
-create policy "users can insert own profile"
-  on profiles for insert
-  to authenticated
-  with check (auth.uid() = id);
-
--- Les comptes connectés peuvent voir la liste des profils (utile pour le
--- dashboard admin qui liste les facilitateurs par zone). Aucune donnée sensible
--- n'y figure (pas de mot de passe, pas d'email affiché côté client).
-create policy "authenticated can view profiles"
-  on profiles for select
-  to authenticated
-  using (true);
-
-create policy "users can update own profile"
-  on profiles for update
-  to authenticated
-  using (auth.uid() = id);
 
 -- ---------- Fonction publique pour la page d'accueil (marketing) ----------
 -- "security definer" = s'exécute avec les droits du créateur, donc peut lire
@@ -81,7 +169,7 @@ grant execute on function public_completion_count() to anon, authenticated;
 
 -- ---------- Table du contenu pédagogique (gérée par le rôle Éditeur) ----------
 -- C'est ici que vit le VRAI contenu affiché dans l'app parent — pas dans le code.
--- Un Éditeur ou un Admin peut publier/corriger un module sans redéploiement.
+-- Un Éditeur ou un Admin, APPROUVÉ, peut publier/corriger un module sans redéploiement.
 create table if not exists scenarios (
   id text primary key,
   pillar text not null check (pillar in ('developpement','soins','sante','nutrition')),
@@ -104,21 +192,21 @@ create policy "anyone can read published scenarios"
   to anon, authenticated
   using (published = true);
 
--- Seuls les comptes Éditeur ou Admin peuvent créer/modifier/supprimer du contenu,
--- et voir aussi les brouillons non publiés (nécessaire pour l'interface d'édition).
-create policy "editors and admins manage scenarios"
+-- Seuls les comptes Éditeur ou Admin APPROUVÉS peuvent créer/modifier/supprimer
+-- du contenu, et voir aussi les brouillons non publiés (nécessaire pour l'éditeur).
+create policy "approved editors and admins manage scenarios"
   on scenarios for all
   to authenticated
   using (
     exists (
       select 1 from profiles p
-      where p.id = auth.uid() and p.role in ('editeur','admin')
+      where p.id = auth.uid() and p.status = 'valide' and p.role in ('editeur','admin')
     )
   )
   with check (
     exists (
       select 1 from profiles p
-      where p.id = auth.uid() and p.role in ('editeur','admin')
+      where p.id = auth.uid() and p.status = 'valide' and p.role in ('editeur','admin')
     )
   );
 
@@ -174,9 +262,12 @@ insert into scenarios (id, pillar, theme, level, situation, narration, choices, 
  ]'::jsonb, true)
 on conflict (id) do nothing;
 
--- ---------- Pour créer votre premier compte admin ou éditeur ----------
--- 1. Inscrivez-vous normalement comme facilitateur depuis l'app.
--- 2. Dans Supabase > Table Editor > profiles, changez manuellement sa colonne
---    "role" de 'facilitateur' à 'admin' ou 'editeur'.
--- (Volontairement pas de self-service pour ces rôles, pour éviter qu'un visiteur
--- ne se donne lui-même un droit de publication ou d'administration.)
+-- ---------- Pour créer votre premier compte admin ----------
+-- Ceci est le SEUL moment où vous touchez la base à la main — après ça, tout
+-- passe par l'interface /admin (approbation, zones, contenu).
+-- 1. Inscrivez-vous normalement comme facilitateur depuis /connexion.
+-- 2. Dans Supabase > Table Editor > profiles, changez manuellement pour cette
+--    ligne : "role" -> 'admin' ET "status" -> 'valide' (les deux, sinon les
+--    policies ci-dessus continueront de vous traiter comme non approuvé).
+-- 3. Reconnectez-vous : vous arrivez sur /admin, avec les droits complets
+--    (approuver des facilitateurs, gérer les zones, publier du contenu).

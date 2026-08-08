@@ -1,5 +1,6 @@
 import { navigate } from '../router.js';
 import { getCurrentProfile, getAggregatedStats, signOut } from '../supabase.js';
+import { renderPendingNotice } from './pendingNotice.js';
 
 export async function renderFacilitatorDashboard(root) {
   root.innerHTML = `<div class="dash-loading"><p class="muted">Chargement de votre espace…</p></div>`;
@@ -7,6 +8,13 @@ export async function renderFacilitatorDashboard(root) {
   const profile = await getCurrentProfile();
   if (!profile) {
     navigate('/connexion');
+    return;
+  }
+
+  // Verrou d'accès direct par URL : un compte non approuvé ne voit jamais le
+  // dashboard, même s'il est authentifié et connaît la route.
+  if (profile.status !== 'valide') {
+    renderPendingNotice(root, profile);
     return;
   }
 

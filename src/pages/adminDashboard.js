@@ -1,18 +1,32 @@
 import { navigate } from '../router.js';
-import { getCurrentProfile, getAggregatedStats, signOut, supabase } from '../supabase.js';
+import {
+  getCurrentProfile, getAggregatedStats, signOut,
+  fetchPendingFacilitators, fetchApprovedFacilitators, setProfileStatus,
+  fetchZones, createZone
+} from '../supabase.js';
+import { renderPendingNotice } from './pendingNotice.js';
 
 export async function renderAdminDashboard(root) {
   root.innerHTML = `<div class="dash-loading"><p class="muted">Chargement…</p></div>`;
 
   const profile = await getCurrentProfile();
   if (!profile) { navigate('/connexion'); return; }
+
+  // Verrou d'accès direct par URL : même un compte "admin" en base doit être
+  // status='valide' pour accéder au dashboard (voir README > créer un admin).
+  if (profile.status !== 'valide') { renderPendingNotice(root, profile); return; }
+
   if (profile.role !== 'admin') {
     navigate(profile.role === 'editeur' ? '/editeur' : '/facilitateur');
     return;
   }
 
-  const stats = await getAggregatedStats();
-  const facilitators = await getFacilitators();
+  const [stats, pending, approved, zones] = await Promise.all([
+    getAggregatedStats(),
+    fetchPendingFacilitators(),
+    fetchApprovedFacilitators(),
+    fetchZones()
+  ]);
 
   root.innerHTML = `
     <div class="dash-screen">
@@ -26,7 +40,7 @@ export async function renderAdminDashboard(root) {
       </header>
 
       <div class="hero-actions" style="margin-bottom:16px;">
-        <button class="btn btn-secondary" id="goEditor">📝 Gérer le contenu pédagogique</button>
+        <button class="btn btn-secondary" id="goEditor"><i class="fa-solid fa-pen-to-square"></i> Gérer le contenu pédagogique</button>
       </div>
 
       ${stats ? `
@@ -45,43 +59,97 @@ export async function renderAdminDashboard(root) {
             `).join('') || '<p class="muted">Aucune donnée.</p>'}
           </div>
         </div>
-        <div class="card">
-          <div class="eyebrow">Par thème</div>
-          <div class="stat-grid">
-            ${Object.entries(stats.byTheme).map(([theme, n]) => `
-              <div class="stat"><div class="num">${n}</div><div class="lbl">${theme}</div></div>
-            `).join('') || '<p class="muted">Aucune donnée.</p>'}
-          </div>
-        </div>
       ` : `<div class="card"><p>Aucune donnée disponible, ou base non configurée.</p></div>`}
 
       <div class="card">
-        <div class="eyebrow">Facilitateurs inscrits</div>
-        ${facilitators.length ? `
+        <div class="eyebrow"><i class="fa-solid fa-user-clock"></i> Facilitateurs en attente d'approbation (${pending.length})</div>
+        <p class="muted">Un compte en attente ne voit AUCUNE donnée tant qu'il n'est pas approuvé ici.</p>
+        ${pending.length ? `
+          <table class="simple-table">
+            <thead><tr><th>Nom</th><th>Zone demandée</th><th></th></tr></thead>
+            <tbody>
+              ${pending.map(f => `
+                <tr>
+                  <td>${f.full_name || '—'}</td>
+                  <td>${f.zone_code || '—'}</td>
+                  <td>
+                    <button class="link-btn" data-approve="${f.id}" style="color:var(--leaf);">
+                      <i class="fa-solid fa-check"></i> Approuver
+                    </button>
+                    <button class="link-btn" data-reject="${f.id}" style="color:var(--danger);">
+                      <i class="fa-solid fa-xmark"></i> Refuser
+                    </button>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        ` : '<p class="muted">Aucune demande en attente.</p>'}
+      </div>
+
+      <div class="card">
+        <div class="eyebrow"><i class="fa-solid fa-users"></i> Facilitateurs approuvés (${approved.length})</div>
+        ${approved.length ? `
           <table class="simple-table">
             <thead><tr><th>Nom</th><th>Zone</th></tr></thead>
             <tbody>
-              ${facilitators.map(f => `<tr><td>${f.full_name || '—'}</td><td>${f.zone_code || '—'}</td></tr>`).join('')}
+              ${approved.map(f => `<tr><td>${f.full_name || '—'}</td><td>${f.zone_code || '—'}</td></tr>`).join('')}
             </tbody>
           </table>
-        ` : '<p class="muted">Aucun facilitateur inscrit pour le moment.</p>'}
+        ` : '<p class="muted">Aucun facilitateur approuvé pour le moment.</p>'}
+      </div>
+
+      <div class="card">
+        <div class="eyebrow"><i class="fa-solid fa-map-location-dot"></i> Zones officielles (${zones.length})</div>
+        <p class="muted">Ce sont les seules zones proposées à l'inscription — personne ne peut en inventer une.</p>
+        ${zones.length ? `
+          <table class="simple-table">
+            <thead><tr><th>Code</th><th>Libellé</th></tr></thead>
+            <tbody>${zones.map(z => `<tr><td>${z.code}</td><td>${z.label}</td></tr>`).join('')}</tbody>
+          </table>
+        ` : '<p class="muted">Aucune zone définie.</p>'}
+        <form id="zoneForm" class="form-stack" style="margin-top:14px;">
+          <label class="field">
+            <span>Code (ex : DLA-BONABERI-01)</span>
+            <input name="code" required pattern="[A-Z0-9-]+" placeholder="DLA-BONABERI-01" />
+          </label>
+          <label class="field">
+            <span>Libellé</span>
+            <input name="label" required placeholder="Douala — Bonabéri" />
+          </label>
+          <p class="error-msg" id="zoneError" hidden></p>
+          <button type="submit" class="btn btn-secondary"><i class="fa-solid fa-plus"></i> Ajouter la zone</button>
+        </form>
       </div>
     </div>
   `;
 
-  document.getElementById('logoutBtn').addEventListener('click', async () => {
-    await signOut();
-    navigate('/');
-  });
+  document.getElementById('logoutBtn').addEventListener('click', async () => { await signOut(); navigate('/'); });
   document.getElementById('goEditor').addEventListener('click', () => navigate('/editeur'));
-}
 
-async function getFacilitators() {
-  if (!supabase) return [];
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('full_name, zone_code, role')
-    .eq('role', 'facilitateur');
-  if (error || !data) return [];
-  return data;
+  root.querySelectorAll('[data-approve]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      await setProfileStatus(btn.dataset.approve, 'valide');
+      renderAdminDashboard(root);
+    });
+  });
+  root.querySelectorAll('[data-reject]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      await setProfileStatus(btn.dataset.reject, 'refuse');
+      renderAdminDashboard(root);
+    });
+  });
+
+  document.getElementById('zoneForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = new FormData(e.target);
+    const errorEl = document.getElementById('zoneError');
+    const result = await createZone({ code: form.get('code').trim().toUpperCase(), label: form.get('label') });
+    if (!result.ok) {
+      errorEl.textContent = result.error || "Erreur lors de l'ajout.";
+      errorEl.hidden = false;
+      return;
+    }
+    renderAdminDashboard(root);
+  });
 }

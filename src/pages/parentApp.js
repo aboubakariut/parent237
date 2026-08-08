@@ -36,17 +36,17 @@ function shell(content, activeTab) {
   root.innerHTML = `
     <div id="app-shell">
       <header class="appbar">
-        <button class="icon-btn" id="homeLink" aria-label="Accueil du site">←</button>
+        <button class="icon-btn" id="homeLink" aria-label="Accueil du site"><i class="fa-solid fa-arrow-left"></i></button>
         <span class="logo-dot"></span>
         <strong>Parent+237</strong>
-        <span class="offline-pill">${navigator.onLine ? 'En ligne' : 'Hors ligne · sauvegardé'}</span>
+        <span class="offline-pill"><i class="fa-solid ${navigator.onLine ? 'fa-wifi' : 'fa-wifi-slash'}"></i> ${navigator.onLine ? 'En ligne' : 'Hors ligne · sauvegardé'}</span>
       </header>
       <main>${content}</main>
       <nav class="tabbar">
-        <button data-tab="home" class="${activeTab === 'home' ? 'active' : ''}"><span class="icon">🏠</span>Accueil</button>
-        <button data-tab="parcours" class="${activeTab === 'parcours' ? 'active' : ''}"><span class="icon">🧭</span>Parcours</button>
-        <button data-tab="badge" class="${activeTab === 'badge' ? 'active' : ''}"><span class="icon">🏅</span>Mon badge</button>
-        <button data-tab="facilitateur" class="${activeTab === 'facilitateur' ? 'active' : ''}"><span class="icon">📊</span>Espace pro</button>
+        <button data-tab="home" class="${activeTab === 'home' ? 'active' : ''}"><span class="icon"><i class="fa-solid fa-house"></i></span>Accueil</button>
+        <button data-tab="parcours" class="${activeTab === 'parcours' ? 'active' : ''}"><span class="icon"><i class="fa-solid fa-compass"></i></span>Parcours</button>
+        <button data-tab="badge" class="${activeTab === 'badge' ? 'active' : ''}"><span class="icon"><i class="fa-solid fa-award"></i></span>Mon badge</button>
+        <button data-tab="facilitateur" class="${activeTab === 'facilitateur' ? 'active' : ''}"><span class="icon"><i class="fa-solid fa-chart-simple"></i></span>Espace pro</button>
       </nav>
     </div>
   `;
@@ -98,11 +98,11 @@ function screenParcours() {
       if (!items.length) return '';
       return `
         <div class="pillar-block">
-          <div class="pillar-title">${p.icon} ${p.label}</div>
+          <div class="pillar-title"><i class="fa-solid ${p.icon}"></i> ${p.label}</div>
           <div class="btn-stack">
             ${items.map(s => `
               <button class="btn btn-choice" data-id="${s.id}">
-                ${progress[s.id] ? '✅ ' : ''}${s.theme}
+                ${progress[s.id] ? '<i class="fa-solid fa-circle-check" style="color:var(--leaf);"></i> ' : ''}${s.theme}
               </button>
             `).join('')}
           </div>
@@ -125,7 +125,7 @@ function screenScenario(id, mood = 'tense', pickedIndex = null) {
     </div>
     <div class="card">
       <p>${s.situation}</p>
-      <button class="btn btn-secondary" id="listenBtn">🔊 Écouter</button>
+      <button class="btn btn-secondary" id="listenBtn"><i class="fa-solid fa-volume-high"></i> Écouter</button>
     </div>
     <div class="btn-stack" id="choices">
       ${s.choices.map((c, i) => `
@@ -181,7 +181,7 @@ function screenBadge(theme) {
     <div class="badge-preview">
       <canvas id="badgeCanvas" width="360" height="440"></canvas>
     </div>
-    <button class="btn btn-primary" id="shareBtn">📲 Partager sur WhatsApp</button>
+    <button class="btn btn-primary" id="shareBtn"><i class="fa-brands fa-whatsapp"></i> Partager sur WhatsApp</button>
     <p class="muted" style="text-align:center; margin-top:10px;">Chaque partage aide un autre parent à découvrir Parent+237.</p>
   `, 'badge');
 

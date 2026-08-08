@@ -3,11 +3,12 @@
 // Soins attentifs, Santé et bien-être, Alimentation et nutrition.
 // Aligner Parent+237 sur cette taxonomie montre au jury une cohérence directe
 // avec le cadre de référence mondial de l'UNICEF, pas une structure inventée.
+// `icon` = nom de classe Font Awesome (sans le préfixe fa-solid/fa-regular).
 export const pillars = [
-  { id: 'developpement', label: 'Développement de l\u2019enfant', icon: '🧠' },
-  { id: 'soins', label: 'Soins attentifs', icon: '🤗' },
-  { id: 'sante', label: 'Santé et bien-être', icon: '🩺' },
-  { id: 'nutrition', label: 'Alimentation et nutrition', icon: '🍲' }
+  { id: 'developpement', label: 'Développement de l\u2019enfant', icon: 'fa-brain' },
+  { id: 'soins', label: 'Soins attentifs', icon: 'fa-hands-holding-child' },
+  { id: 'sante', label: 'Santé et bien-être', icon: 'fa-stethoscope' },
+  { id: 'nutrition', label: 'Alimentation et nutrition', icon: 'fa-bowl-food' }
 ];
 
 // Chaque scénario = une mini-leçon de 5 minutes.

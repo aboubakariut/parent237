@@ -1,9 +1,11 @@
 import { navigate } from '../router.js';
-import { signIn, signUpFacilitator, getCurrentProfile } from '../supabase.js';
+import { signIn, signUpFacilitator, getCurrentProfile, fetchZones } from '../supabase.js';
+import { renderPendingNotice } from './pendingNotice.js';
 
 let mode = 'login'; // 'login' | 'signup'
 
-export function renderAuth(root) {
+export async function renderAuth(root) {
+  const zones = mode === 'signup' ? await fetchZones() : [];
   root.innerHTML = `
     <div class="auth-screen">
       <div class="auth-card">
@@ -24,9 +26,18 @@ export function renderAuth(root) {
               <input type="text" name="fullName" required placeholder="Ex : Awa Ngo Bakoa" />
             </label>
             <label class="field">
-              <span>Code de zone</span>
-              <input type="text" name="zoneCode" required placeholder="Ex : YDE-EFOULAN-01" />
+              <span>Zone d'intervention</span>
+              <select name="zoneCode" required>
+                <option value="" disabled selected>Choisissez votre zone</option>
+                ${zones.map(z => `<option value="${z.code}">${z.label}</option>`).join('')}
+              </select>
+              ${!zones.length ? '<span class="muted" style="font-weight:400;">Aucune zone disponible — contactez un administrateur.</span>' : ''}
             </label>
+            <p class="muted" style="margin-top:-6px;">
+              Votre compte sera <strong>en attente</strong> jusqu'à validation par un administrateur
+              du programme — c'est volontaire, pour vérifier chaque facilitateur avant de lui
+              donner accès aux données de sa zone.
+            </p>
           ` : ''}
           <label class="field">
             <span>Email</span>
@@ -40,7 +51,7 @@ export function renderAuth(root) {
           <button type="submit" class="btn btn-primary">${mode === 'login' ? 'Se connecter' : "S'inscrire"}</button>
         </form>
 
-        <button class="link-btn" id="backHome">← Retour à l'accueil</button>
+        <button class="link-btn" id="backHome"><i class="fa-solid fa-arrow-left"></i> Retour à l'accueil</button>
       </div>
     </div>
   `;
@@ -90,6 +101,15 @@ export function renderAuth(root) {
     }
 
     const profile = await getCurrentProfile();
+
+    // Un compte 'en_attente' n'a accès à aucune donnée réelle (verrouillé côté
+    // base par RLS) — on l'informe clairement plutôt que de l'envoyer sur un
+    // dashboard vide, ce qui serait confus.
+    if (profile && profile.status !== 'valide') {
+      renderPendingNotice(root, profile);
+      return;
+    }
+
     const destination = profile?.role === 'admin' ? '/admin'
       : profile?.role === 'editeur' ? '/editeur'
       : '/facilitateur';

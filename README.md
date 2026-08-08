@@ -35,6 +35,10 @@ passe de plus est une barrière d'adoption dans le contexte visé. Seuls les rô
   depuis le navigateur.
 - **Compteur public sans fuite de données** : la page d'accueil affiche un total via une fonction
   SQL `security definer` qui ne renvoie jamais les lignes individuelles.
+- **Icônes Font Awesome** (CDN, mises en cache par le service worker pour l'usage hors-ligne) —
+  aucune icône brute (emoji/unicode) dans le HTML.
+- **Workflow d'approbation** : tout compte facilitateur/éditeur passe par une validation admin
+  avant de voir la moindre donnée (voir section Sécurité ci-dessous).
 
 ## 1. Installation locale
 ```bash
@@ -84,14 +88,53 @@ Ou via l'interface Vercel : *Import Project* depuis GitHub, puis ajoutez dans
 
 Le fichier `vercel.json` est déjà configuré (build command, dossier `dist`, rewrites SPA).
 
-## Créer votre premier compte admin ou éditeur
-1. Depuis `/connexion`, inscrivez-vous normalement en tant que facilitateur.
-2. Dans Supabase → **Table Editor → profiles**, changez manuellement la colonne `role`
-   de cette ligne : `facilitateur` → `admin` ou `editeur`.
-3. Reconnectez-vous : vous arrivez automatiquement sur `/admin` ou `/editeur`.
+## Sécurité : empêcher les faux comptes facilitateur de voir des données
+Trois verrous indépendants, tous appliqués côté base (PostgreSQL/RLS), donc
+infalsifiables depuis le navigateur même par quelqu'un qui lit ce code :
 
-(Volontairement, personne ne peut se donner ces rôles depuis le formulaire public —
-c'est une décision de sécurité et d'intégrité du contenu, pas un oubli.)
+1. **Approbation obligatoire.** Un compte fraîchement inscrit a `status = 'en_attente'`.
+   Toutes les policies de lecture de données réelles (`completions`, gestion de
+   `scenarios`) exigent `status = 'valide'`. Tant qu'un admin n'a pas approuvé le
+   compte depuis `/admin`, il ne voit strictement rien — même en visitant l'URL
+   du dashboard directement.
+2. **Zones contrôlées, pas de texte libre.** Les codes de zone viennent d'une table
+   `zones` gérée uniquement par l'admin (`/admin`). Le formulaire d'inscription
+   propose un menu déroulant, pas un champ texte : impossible d'inventer un code
+   qui n'existe pas ou d'usurper une zone par une simple faute de frappe.
+3. **Auto-élévation impossible.** La policy d'insertion sur `profiles` verrouille
+   `role = 'facilitateur'` et `status = 'en_attente'` au niveau SQL (`with check`).
+   Même quelqu'un qui contournerait le formulaire pour appeler l'API Supabase
+   directement ne peut pas s'auto-déclarer admin ou "validé" — la base rejette
+   la requête.
+
+**Ce que voit concrètement un admin sur `/admin`** : la file des demandes en
+attente (nom + zone demandée, avec boutons Approuver/Refuser), la liste des
+facilitateurs déjà approuvés, la liste des zones officielles avec un formulaire
+pour en ajouter, et les statistiques agrégées globales.
+
+## Qui est l'admin, concrètement ?
+Techniquement, n'importe qui promu manuellement (voir ci-dessous) — mais la
+gouvernance prévue est :
+- **Phase pilote (maintenant → lancement)** : vous et votre associé, en tant
+  qu'équipe technique, portez le premier compte admin pour configurer les
+  zones et approuver les premiers facilitateurs de test.
+- **Phase programme** : un point focal désigné par MINPROFF/UNICEF (ou un
+  membre de l'équipe M&E) reprend ce rôle, puisque l'approbation des
+  facilitateurs est une décision de terrain/institutionnelle, pas technique.
+Cette distinction est utile à mentionner explicitement dans le dossier — le
+jury demande souvent "qui a la main sur l'outil après le concours ?".
+
+## Créer votre premier compte admin
+1. Depuis `/connexion`, inscrivez-vous normalement en tant que facilitateur.
+2. Dans Supabase → **Table Editor → profiles**, changez manuellement pour cette
+   ligne : `role` → `admin` **et** `status` → `valide` (les deux colonnes,
+   sinon les policies continuent de vous traiter comme non approuvé).
+3. Reconnectez-vous : vous arrivez automatiquement sur `/admin`.
+
+C'est le **seul** moment où vous touchez la base à la main. Après ça, tout
+passe par l'interface `/admin` : approbation des facilitateurs suivants,
+création de zones, élévation d'un compte "éditeur" (même mécanisme, à
+appliquer une seule fois pour le premier éditeur).
 
 ## Prochaines étapes suggérées avant le 25 août
 - Enrichir `src/scenarios.js` avec les scénarios validés localement (idéalement avec un

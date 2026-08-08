@@ -3,6 +3,7 @@ import { pillars } from '../scenarios.js';
 import {
   getCurrentProfile, fetchAllScenariosForEditor, upsertScenario, deleteScenario, signOut
 } from '../supabase.js';
+import { renderPendingNotice } from './pendingNotice.js';
 
 let editingId = null; // null = formulaire vide (création)
 
@@ -11,6 +12,7 @@ export async function renderContentEditor(root) {
 
   const profile = await getCurrentProfile();
   if (!profile) { navigate('/connexion'); return; }
+  if (profile.status !== 'valide') { renderPendingNotice(root, profile); return; }
   if (!['editeur', 'admin'].includes(profile.role)) {
     navigate(profile.role === 'admin' ? '/admin' : '/facilitateur');
     return;
@@ -32,7 +34,7 @@ export async function renderContentEditor(root) {
 
       ${profile.role === 'admin' ? `
         <div class="hero-actions" style="margin-bottom:16px;">
-          <button class="btn btn-secondary" id="goAdmin">📊 Voir le tableau de bord global</button>
+          <button class="btn btn-secondary" id="goAdmin"><i class="fa-solid fa-chart-line"></i> Voir le tableau de bord global</button>
         </div>
       ` : ''}
 

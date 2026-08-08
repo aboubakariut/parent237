@@ -98,13 +98,14 @@ export async function signUpFacilitator({ email, password, fullName, zoneCode })
   const { data, error } = await supabase.auth.signUp({ email, password });
   if (error) return { ok: false, error: error.message };
 
-  // L'inscription publique ne peut créer que des comptes "facilitateur".
-  // Un compte "admin" doit être élevé manuellement dans Supabase (voir README) —
-  // c'est une limite volontaire pour éviter qu'un visiteur ne se donne un rôle admin.
+  // Le compte créé ici est TOUJOURS role='facilitateur' + status='en_attente' :
+  // même si ce code était modifié pour envoyer autre chose, la policy RLS
+  // "self-signup is locked to facilitateur + en_attente" côté base rejetterait
+  // l'insertion. Un admin doit explicitement approuver le compte (voir
+  // setProfileStatus) avant qu'il ne puisse voir la moindre donnée réelle.
   const { error: profileError } = await supabase.from('profiles').insert({
     id: data.user.id,
     full_name: fullName,
-    role: 'facilitateur',
     zone_code: zoneCode
   });
   if (profileError) return { ok: false, error: profileError.message };
@@ -184,6 +185,61 @@ export async function upsertScenario(scenario) {
 export async function deleteScenario(id) {
   if (!supabase) return { ok: false, error: 'Base non configurée' };
   const { error } = await supabase.from('scenarios').delete().eq('id', id);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+/* ---------------- Zones officielles ---------------- */
+// Le code de zone n'est jamais du texte libre saisi par l'inscrit : il vient
+// de cette liste, gérée uniquement par l'admin.
+export async function fetchZones() {
+  if (!supabase) return [];
+  const { data, error } = await supabase.from('zones').select('*').order('code');
+  if (error || !data) return [];
+  return data;
+}
+
+export async function createZone({ code, label }) {
+  if (!supabase) return { ok: false, error: 'Base non configurée' };
+  const { error } = await supabase.from('zones').insert({ code, label });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+/* ---------------- Approbation des comptes (admin uniquement) ---------------- */
+// Un compte fraîchement inscrit est 'en_attente' et invisible aux données
+// réelles (voir RLS). L'admin l'approuve ou le refuse ici.
+export async function fetchPendingFacilitators() {
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('status', 'en_attente');
+  if (error || !data) return [];
+  return data;
+}
+
+export async function fetchApprovedFacilitators() {
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('role', 'facilitateur')
+    .eq('status', 'valide');
+  if (error || !data) return [];
+  return data;
+}
+
+export async function setProfileStatus(id, status) {
+  if (!supabase) return { ok: false, error: 'Base non configurée' };
+  const { error } = await supabase.from('profiles').update({ status }).eq('id', id);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+export async function setProfileRole(id, role) {
+  if (!supabase) return { ok: false, error: 'Base non configurée' };
+  const { error } = await supabase.from('profiles').update({ role }).eq('id', id);
   if (error) return { ok: false, error: error.message };
   return { ok: true };
 }
