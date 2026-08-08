@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nkong'Famille — Prototype de démonstration</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Work+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#14213D;
+  --paper:#FBF6EE;
+  --surface:#FFFFFF;
+  --primary:#1E4B8F;
+  --primary-dark:#123059;
+  --clay:#C4622D;
+  --gold:#D9A441;
+  --success:#3F7D58;
+  --muted:#78716C;
+  --line:#E7E0D3;
+  --radius:18px;
+  --shadow: 0 12px 30px -12px rgba(20,33,61,.25);
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--paper);
+  color:var(--ink);
+  font-family:'Work Sans',sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,.display{font-family:'Fraunces',serif;}
+button{font-family:inherit;cursor:pointer;}
+.woven{
+  height:8px;
+  background:repeating-linear-gradient(115deg,
+    var(--gold) 0 10px, var(--clay) 10px 20px, var(--primary) 20px 30px, var(--ink) 30px 34px);
+  width:100%;
+}
+
+/* ---------- Top brand / role switcher ---------- */
+.topbar{
+  background:var(--ink);
+  color:var(--paper);
+  padding:22px 20px 26px;
+}
+.brand{
+  max-width:1100px;margin:0 auto;
+  display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:10px;
+}
+.brand-name{font-size:26px;font-weight:600;letter-spacing:.2px;}
+.brand-name span{color:var(--gold);}
+.brand-tag{font-size:13px;color:#C9CEDB;font-weight:400;max-width:420px;}
+.switcher{
+  max-width:1100px;margin:18px auto 0;
+  display:flex;gap:8px;background:rgba(255,255,255,.08);
+  padding:5px;border-radius:14px;
+}
+.switcher button{
+  flex:1;border:none;background:transparent;color:#CBD1E0;
+  padding:11px 10px;border-radius:10px;font-size:14px;font-weight:600;
+  transition:.2s;
+}
+.switcher button.active{background:var(--paper);color:var(--ink);}
+.switcher button:not(.active):hover{background:rgba(255,255,255,.08);color:#fff;}
+.switcher .sub{display:block;font-weight:400;font-size:11px;opacity:.75;margin-top:1px;}
+
+main{max-width:1100px;margin:0 auto;padding:34px 20px 70px;}
+.view{display:none;animation:fade .35s ease;}
+.view.active{display:block;}
+@keyframes fade{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+
+.section-head{margin-bottom:22px;}
+.eyebrow{
+  color:var(--clay);font-weight:700;font-size:12px;letter-spacing:.09em;text-transform:uppercase;
+}
+.section-head h2{font-size:26px;margin:6px 0 6px;font-weight:600;}
+.section-head p{color:var(--muted);font-size:14.5px;max-width:640px;line-height:1.5;margin:0;}
+
+.layout{display:flex;gap:40px;align-items:flex-start;flex-wrap:wrap;}
+.layout .notes{flex:1;min-width:260px;}
+.notes h3{font-size:16px;margin:0 0 8px;}
+.notes ul{padding-left:18px;margin:0 0 18px;color:var(--ink);font-size:14px;line-height:1.7;}
+.notes li::marker{color:var(--clay);}
+.badge-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+.pill{
+  font-size:12px;font-weight:600;background:var(--surface);border:1px solid var(--line);
+  padding:6px 11px;border-radius:20px;color:var(--ink);
+}
+.pill.p{border-color:var(--primary);color:var(--primary);}
+.pill.c{border-color:var(--clay);color:var(--clay);}
+
+/* ---------- Phone frame ---------- */
+.phone-wrap{flex:0 0 auto;}
+.phone{
+  width:320px;height:660px;background:var(--ink);border-radius:42px;
+  padding:12px;box-shadow:var(--shadow);position:relative;
+}
+.phone::before{
+  content:"";position:absolute;top:12px;left:50%;transform:translateX(-50%);
+  width:90px;height:22px;background:var(--ink);border-radius:0 0 14px 14px;z-index:5;
+}
+.screen{
+  background:var(--paper);width:100%;height:100%;border-radius:30px;overflow:hidden;
+  display:flex;flex-direction:column;position:relative;
+}
+.app-screen{display:none;flex-direction:column;height:100%;}
+.app-screen.active{display:flex;}
+.app-header{
+  background:var(--surface);padding:20px 18px 14px;border-bottom:1px solid var(--line);
+  flex-shrink:0;
+}
+.app-header .greet{font-size:12px;color:var(--muted);}
+.app-header h3{margin:2px 0 0;font-size:19px;}
+.app-body{flex:1;overflow-y:auto;padding:16px;}
+.app-body::-webkit-scrollbar{width:0;}
+.bottom-nav{
+  display:flex;justify-content:space-around;background:var(--surface);
+  border-top:1px solid var(--line);padding:10px 6px 14px;flex-shrink:0;
+}
+.nav-btn{
+  background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:3px;
+  color:var(--muted);font-size:10.5px;font-weight:600;padding:4px 8px;border-radius:10px;
+}
+.nav-btn.active{color:var(--primary);}
+.nav-btn svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.8;}
+
+/* cards inside phone */
+.stat-row{display:flex;gap:10px;margin-bottom:16px;}
+.stat-card{
+  flex:1;background:var(--surface);border:1px solid var(--line);border-radius:14px;
+  padding:12px;text-align:center;
+}
+.stat-card b{display:block;font-size:20px;color:var(--primary);font-family:'Fraunces',serif;}
+.stat-card span{font-size:10.5px;color:var(--muted);}
+.cta-card{
+  background:var(--primary);color:#fff;border-radius:16px;padding:16px;margin-bottom:16px;
+  position:relative;overflow:hidden;
+}
+.cta-card small{opacity:.8;font-size:11px;}
+.cta-card h4{margin:4px 0 10px;font-size:16px;font-weight:600;}
+.cta-card button{
+  background:#fff;color:var(--primary);border:none;border-radius:10px;padding:8px 14px;
+  font-weight:700;font-size:12.5px;
+}
+.mod-item{
+  display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--line);
+  border-radius:14px;padding:11px 12px;margin-bottom:9px;
+}
+.mod-num{
+  width:34px;height:34px;border-radius:10px;background:var(--paper);color:var(--primary);
+  display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;
+}
+.mod-item.done .mod-num{background:var(--success);color:#fff;}
+.mod-info{flex:1;min-width:0;}
+.mod-info b{display:block;font-size:12.8px;line-height:1.25;}
+.progress{height:5px;background:var(--line);border-radius:4px;margin-top:6px;overflow:hidden;}
+.progress i{display:block;height:100%;background:var(--primary);border-radius:4px;}
+.mod-item.done .progress i{background:var(--success);}
+.lock{color:var(--muted);font-size:15px;flex-shrink:0;}
+
+.lesson-block{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px;}
+.lesson-block h4{margin:0 0 8px;font-size:14px;}
+.lesson-block p{font-size:12.8px;line-height:1.55;color:#3a3630;margin:0 0 10px;}
+.audio-btn{
+  display:inline-flex;align-items:center;gap:7px;background:var(--paper);border:1px solid var(--line);
+  border-radius:20px;padding:7px 13px;font-size:12px;font-weight:600;color:var(--primary);
+}
+.quiz-opt{
+  display:flex;align-items:center;gap:9px;border:1px solid var(--line);border-radius:11px;
+  padding:9px 11px;margin-bottom:7px;font-size:12.5px;background:var(--surface);
+}
+.quiz-opt.correct{border-color:var(--success);background:#EEF7F1;font-weight:600;}
+.validate-btn{
+  width:100%;background:var(--ink);color:#fff;border:none;border-radius:12px;padding:11px;
+  font-weight:700;font-size:13px;margin-top:6px;
+}
+.cohort-card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:9px;}
+.cohort-card .top{display:flex;justify-content:space-between;align-items:center;}
+.cohort-card b{font-size:13px;}
+.cohort-card .n{font-size:11px;color:var(--muted);}
+.add-session{
+  width:100%;border:1.5px dashed var(--primary);color:var(--primary);background:none;
+  border-radius:14px;padding:12px;font-weight:700;font-size:12.5px;margin-top:6px;
+}
+.profile-top{text-align:center;padding:6px 0 18px;}
+.avatar{
+  width:64px;height:64px;border-radius:50%;background:var(--gold);margin:0 auto 10px;
+  display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;
+  font-size:24px;color:#fff;font-weight:600;
+}
+.badge-grid{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:6px;}
+.badge{
+  width:56px;height:56px;border-radius:14px;background:var(--surface);border:1px solid var(--line);
+  display:flex;align-items:center;justify-content:center;font-size:22px;
+}
+.badge.locked{opacity:.35;}
+
+/* ---------- Chat (parent) ---------- */
+.lang-row{display:flex;gap:6px;margin-top:8px;}
+.lang-chip{
+  font-size:10.5px;font-weight:700;border:1px solid var(--line);background:var(--surface);
+  border-radius:16px;padding:4px 9px;color:var(--muted);
+}
+.lang-chip.on{background:var(--primary);color:#fff;border-color:var(--primary);}
+.chat-body{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;}
+.bubble{max-width:78%;padding:10px 13px;border-radius:16px;font-size:12.8px;line-height:1.5;}
+.bubble.bot{align-self:flex-start;background:var(--surface);border:1px solid var(--line);border-bottom-left-radius:4px;}
+.bubble.user{align-self:flex-end;background:var(--primary);color:#fff;border-bottom-right-radius:4px;}
+.bubble.audio{display:flex;align-items:center;gap:8px;}
+.quick-replies{display:flex;flex-wrap:wrap;gap:7px;margin-top:2px;align-self:flex-start;max-width:90%;}
+.qr-btn{
+  background:var(--surface);border:1px solid var(--primary);color:var(--primary);
+  border-radius:16px;padding:7px 12px;font-size:11.8px;font-weight:600;
+}
+.qr-btn.urgent{border-color:var(--clay);color:var(--clay);}
+.grounded-note{
+  text-align:center;font-size:9.5px;color:var(--muted);padding:6px 10px;border-top:1px solid var(--line);
+  background:var(--surface);
+}
+.chat-input{display:flex;gap:8px;padding:10px;background:var(--surface);border-top:1px solid var(--line);}
+.chat-input input{
+  flex:1;border:1px solid var(--line);border-radius:20px;padding:9px 13px;font-size:12.5px;
+  background:var(--paper);
+}
+.chat-input button{
+  width:38px;height:38px;border-radius:50%;background:var(--primary);border:none;color:#fff;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+
+/* ---------- Admin dashboard ---------- */
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px;}
+.kpi-card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px;}
+.kpi-card .lbl{font-size:12px;color:var(--muted);font-weight:600;}
+.kpi-card .val{font-family:'Fraunces',serif;font-size:32px;color:var(--ink);margin-top:4px;}
+.kpi-card .delta{font-size:11.5px;color:var(--success);font-weight:700;margin-top:3px;}
+.dash-grid{display:grid;grid-template-columns:1.3fr 1fr;gap:18px;}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:20px;margin-bottom:18px;}
+.panel h3{font-size:15px;margin:0 0 16px;display:flex;justify-content:space-between;align-items:center;}
+.panel h3 small{font-weight:400;color:var(--muted);font-size:11px;}
+.region-row{display:flex;align-items:center;gap:12px;margin-bottom:12px;}
+.region-row .name{width:110px;font-size:12.5px;font-weight:600;flex-shrink:0;}
+.region-bar{flex:1;height:9px;background:var(--paper);border-radius:6px;overflow:hidden;}
+.region-bar i{display:block;height:100%;background:var(--primary);border-radius:6px;}
+.region-row .num{width:44px;text-align:right;font-size:11.5px;color:var(--muted);}
+.alert-item{
+  display:flex;gap:10px;padding:11px;border-left:3px solid var(--clay);background:#FBF1EA;
+  border-radius:0 10px 10px 0;margin-bottom:9px;font-size:12.5px;line-height:1.4;
+}
+.alert-item.ok{border-color:var(--success);background:#EEF7F1;}
+.activity-item{display:flex;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:12.5px;}
+.activity-item:last-child{border-bottom:none;}
+.activity-dot{width:7px;height:7px;border-radius:50%;background:var(--gold);margin-top:5px;flex-shrink:0;}
+.trend-svg{width:100%;height:150px;}
+@media (max-width:820px){
+  .layout{flex-direction:column;}
+  .phone-wrap{margin:0 auto;}
+  .kpi-grid{grid-template-columns:repeat(2,1fr);}
+  .dash-grid{grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <div>
+      <div class="brand-name">Nkong<span>'</span>Famille</div>
+      <div class="brand-tag">Prototype — Concours d'Innovation « Parentalité Positive », UNICEF Cameroun × MINPROFF</div>
+    </div>
+  </div>
+  <div class="switcher">
+    <button class="active" data-role="facilitateur">Facilitateur<span class="sub">app terrain</span></button>
+    <button data-role="parent">Parent<span class="sub">assistant chat</span></button>
+    <button data-role="admin">MINPROFF / UNICEF<span class="sub">pilotage</span></button>
+  </div>
+</div>
+<div class="woven"></div>
+
+<main>
+
+  <!-- ============ FACILITATEUR ============ -->
+  <section class="view active" id="view-facilitateur">
+    <div class="section-head">
+      <div class="eyebrow">Acteur 1 — Facilitateur communautaire</div>
+      <h2>Former, suivre, faire rayonner le programme</h2>
+      <p>L'app installable (PWA) qui digitalise les 7 modules du guide MINPROFF, fonctionne hors-ligne, et permet au facilitateur d'enregistrer ses sessions de formation avec les parents.</p>
+    </div>
+    <div class="layout">
+      <div class="phone-wrap">
+        <div class="phone"><div class="screen">
+
+          <!-- Accueil -->
+          <div class="app-screen active" data-screen="fac-accueil">
+            <div class="app-header">
+              <div class="greet">Bonjour 👋</div>
+              <h3>Marie Ngo Bell</h3>
+            </div>
+            <div class="app-body">
+              <div class="stat-row">
+                <div class="stat-card"><b>4/7</b><span>Modules validés</span></div>
+                <div class="stat-card"><b>24</b><span>Parents suivis</span></div>
+                <div class="stat-card"><b>3</b><span>Sessions ce mois</span></div>
+              </div>
+              <div class="cta-card">
+                <small>Reprendre</small>
+                <h4>Module 5 — Priorisation des ressources</h4>
+                <button onclick="goScreen('fac','fac-modules')">Continuer →</button>
+              </div>
+              <div class="lesson-block">
+                <h4>📡 Mode hors-ligne actif</h4>
+                <p>Vos 4 derniers modules sont enregistrés sur l'appareil. La synchronisation reprendra automatiquement dès la reconnexion.</p>
+              </div>
+            </div>
+            <div class="bottom-nav">
+              <button class="nav-btn active" onclick="goScreen('fac','fac-accueil')"><svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z"/></svg>Accueil</button>
+              <button class="nav-btn" onclick="goScreen('fac','fac-modules')"><svg viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-2z"/><path d="M8 3v18"/></svg>Modules</button>
+              <button class="nav-btn" onclick="goScreen('fac','fac-cohortes')"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M2 20c0-3.3 3-5 7-5s7 1.7 7 5"/></svg>Cohortes</button>
+              <button class="nav-btn" onclick="goScreen('fac','fac-profil')"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>Profil</button>
+            </div>
+          </div>
+
+          <!-- Modules -->
+          <div class="app-screen" data-screen="fac-modules">
+            <div class="app-header"><div class="greet">7 modules officiels</div><h3>Programme MINPROFF</h3></div>
+            <div class="app-body">
+              <div class="mod-item done"><div class="mod-num">✓</div><div class="mod-info"><b>1 · La perception de l'enfance</b><div class="progress"><i style="width:100%"></i></div></div></div>
+              <div class="mod-item done"><div class="mod-num">✓</div><div class="mod-info"><b>2 · Rôle des familles et communautés</b><div class="progress"><i style="width:100%"></i></div></div></div>
+              <div class="mod-item done"><div class="mod-num">✓</div><div class="mod-info"><b>3 · Développement de l'enfant</b><div class="progress"><i style="width:100%"></i></div></div></div>
+              <div class="mod-item done"><div class="mod-num">✓</div><div class="mod-info"><b>4 · Les 1000 premiers jours (1)</b><div class="progress"><i style="width:100%"></i></div></div></div>
+              <div class="mod-item" onclick="goScreen('fac','fac-lecon')" style="cursor:pointer"><div class="mod-num">5</div><div class="mod-info"><b>5 · Priorisation des ressources</b><div class="progress"><i style="width:40%"></i></div></div></div>
+              <div class="mod-item"><div class="mod-num">6</div><div class="mod-info"><b>6 · Suivi et accompagnement</b><div class="progress"><i style="width:0%"></i></div></div><div class="lock">🔒</div></div>
+              <div class="mod-item"><div class="mod-num">7</div><div class="mod-info"><b>7 · Clôture et évaluation</b><div class="progress"><i style="width:0%"></i></div></div><div class="lock">🔒</div></div>
+            </div>
+            <div class="bottom-nav">
+              <button class="nav-btn" onclick="goScreen('fac','fac-accueil')"><svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z"/></svg>Accueil</button>
+              <button class="nav-btn active"><svg viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-2z"/><path d="M8 3v18"/></svg>Modules</button>
+              <button class="nav-btn" onclick="goScreen('fac','fac-cohortes')"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M2 20c0-3.3 3-5 7-5s7 1.7 7 5"/></svg>Cohortes</button>
+              <button class="nav-btn" onclick="goScreen('fac','fac-profil')"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>Profil</button>
+            </div>
+          </div>
+
+          <!-- Leçon -->
+          <div class="app-screen" data-screen="fac-lecon">
+            <div class="app-header"><div class="greet" onclick="goScreen('fac','fac-modules')" style="cursor:pointer">← Module 5</div><h3>Priorisation des ressources</h3></div>
+            <div class="app-body">
+              <div class="lesson-block">
+                <h4>Ce qu'il faut retenir</h4>
+                <p>Chaque famille dispose de ressources limitées — temps, argent, énergie. Le rôle du facilitateur est d'aider les parents à identifier ce qui compte le plus pour le bien-être de l'enfant, et à organiser leurs priorités en conséquence plutôt que de tout vouloir faire à la fois.</p>
+                <button class="audio-btn">🎧 Écouter la leçon (2 min)</button>
+              </div>
+              <div class="lesson-block">
+                <h4>Quiz — Valider la leçon</h4>
+                <div class="quiz-opt">Ignorer les besoins émotionnels de l'enfant</div>
+                <div class="quiz-opt correct">✓ Équilibrer besoins essentiels et ressources disponibles</div>
+                <div class="quiz-opt">Se concentrer uniquement sur l'aspect financier</div>
+                <button class="validate-btn" onclick="alert('Module 5 validé — badge débloqué 🏅')">Valider ma réponse</button>
+              </div>
+            </div>
+            <div class="bottom-nav">
+              <button class="nav-btn" onclick="goScreen('fac','fac-accueil')"><svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z"/></svg>Accueil</button>
+              <button class="nav-btn active" onclick="goScreen('fac','fac-modules')"><svg viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-2z"/><path d="M8 3v18"/></svg>Modules</button>
+              <button class="nav-btn" onclick="goScreen('fac','fac-cohortes')"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M2 20c0-3.3 3-5 7-5s7 1.7 7 5"/></svg>Cohortes</button>
+              <button class="nav-btn" onclick="goScreen('fac','fac-profil')"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>Profil</button>
+            </div>
+          </div>
+
+          <!-- Cohortes -->
+          <div class="app-screen" data-screen="fac-cohortes">
+            <div class="app-header"><div class="greet">Mes groupes de parents</div><h3>Cohortes suivies</h3></div>
+            <div class="app-body">
+              <div class="cohort-card"><div class="top"><b>Groupe Ébolowa Centre</b><span class="n">8 parents</span></div><span class="n">Dernière session : il y a 4 jours</span></div>
+              <div class="cohort-card"><div class="top"><b>Groupe Bafia Village</b><span class="n">12 parents</span></div><span class="n">Dernière session : il y a 9 jours</span></div>
+              <div class="cohort-card"><div class="top"><b>Groupe Nkolbisson</b><span class="n">4 parents</span></div><span class="n">Nouvelle cohorte</span></div>
+              <button class="add-session" onclick="alert('Formulaire : lieu, date, nombre de participants — enregistré même hors-ligne')">+ Enregistrer une session</button>
+            </div>
+            <div class="bottom-nav">
+              <button class="nav-btn" onclick="goScreen('fac','fac-accueil')"><svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z"/></svg>Accueil</button>
+              <button class="nav-btn" onclick="goScreen('fac','fac-modules')"><svg viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-2z"/><path d="M8 3v18"/></svg>Modules</button>
+              <button class="nav-btn active"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M2 20c0-3.3 3-5 7-5s7 1.7 7 5"/></svg>Cohortes</button>
+              <button class="nav-btn" onclick="goScreen('fac','fac-profil')"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>Profil</button>
+            </div>
+          </div>
+
+          <!-- Profil -->
+          <div class="app-screen" data-screen="fac-profil">
+            <div class="app-header"><div class="greet">Mon profil</div><h3>Facilitatrice</h3></div>
+            <div class="app-body">
+              <div class="profile-top">
+                <div class="avatar">MN</div>
+                <b>Marie Ngo Bell</b><br>
+                <span class="n" style="font-size:12px;color:var(--muted)">Facilitatrice — Région du Centre</span>
+                <div class="badge-grid">
+                  <div class="badge">🏅</div><div class="badge">📘</div><div class="badge">🌱</div>
+                  <div class="badge locked">🔒</div><div class="badge locked">🔒</div>
+                </div>
+              </div>
+              <div class="lesson-block">
+                <h4>Certificat national</h4>
+                <p>4 modules sur 7 validés. Le certificat officiel MINPROFF se débloque à 7/7.</p>
+                <div class="progress"><i style="width:57%"></i></div>
+              </div>
+            </div>
+            <div class="bottom-nav">
+              <button class="nav-btn" onclick="goScreen('fac','fac-accueil')"><svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z"/></svg>Accueil</button>
+              <button class="nav-btn" onclick="goScreen('fac','fac-modules')"><svg viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-2z"/><path d="M8 3v18"/></svg>Modules</button>
+              <button class="nav-btn" onclick="goScreen('fac','fac-cohortes')"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M2 20c0-3.3 3-5 7-5s7 1.7 7 5"/></svg>Cohortes</button>
+              <button class="nav-btn active"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>Profil</button>
+            </div>
+          </div>
+
+        </div></div>
+      </div>
+      <div class="notes">
+        <h3>Ce que démontre cet écran</h3>
+        <ul>
+          <li>7 modules du guide officiel MINPROFF, digitalisés en fiches courtes + quiz</li>
+          <li>Fonctionne hors-ligne — synchronisation automatique à la reconnexion</li>
+          <li>Suivi des cohortes de parents accompagnés en présentiel + digital</li>
+          <li>Gamification légère (badges, certificat) pour motiver la complétion</li>
+        </ul>
+        <div class="badge-row">
+          <span class="pill p">Critère : Innovation</span>
+          <span class="pill p">Critère : Accessibilité</span>
+          <span class="pill c">Critère : Réplicabilité</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PARENT ============ -->
+  <section class="view" id="view-parent">
+    <div class="section-head">
+      <div class="eyebrow">Acteur 2 — Parent / aidant</div>
+      <h2>Un assistant qui répond, sans se substituer au guide officiel</h2>
+      <p>Assistant conversationnel dans l'app (grounded sur le guide MINPROFF), également disponible sur WhatsApp/SMS pour les téléphones basiques et les zones à faible connectivité.</p>
+    </div>
+    <div class="layout">
+      <div class="phone-wrap">
+        <div class="phone"><div class="screen">
+          <div class="app-screen active">
+            <div class="app-header">
+              <div class="greet">🟢 En ligne · Assistant Parentalité</div>
+              <h3>Nkong'Famille</h3>
+              <div class="lang-row">
+                <div class="lang-chip on">Français</div>
+                <div class="lang-chip">English</div>
+                <div class="lang-chip">Fulfulde</div>
+              </div>
+            </div>
+            <div class="chat-body" id="chatBody">
+              <div class="bubble bot">Bonjour 👋 Je suis votre assistant parentalité, basé sur le programme officiel MINPROFF. Comment puis-je vous aider aujourd'hui ?</div>
+              <div class="quick-replies">
+                <button class="qr-btn" onclick="chatReply(this,'Conseil du jour')">🌞 Conseil du jour</button>
+                <button class="qr-btn" onclick="chatReply(this,'Poser une question')">❓ Poser une question</button>
+                <button class="qr-btn urgent" onclick="chatReply(this,'Besoin d’aide urgente')">🚨 Besoin d'aide</button>
+              </div>
+            </div>
+            <div class="grounded-note">🔒 Réponses vérifiées, basées uniquement sur le Guide officiel MINPROFF</div>
+            <div class="chat-input">
+              <input type="text" id="chatInput" placeholder="Écrire un message…">
+              <button onclick="sendTyped()">➤</button>
+            </div>
+          </div>
+        </div></div>
+      </div>
+      <div class="notes">
+        <h3>Ce que démontre cet écran</h3>
+        <ul>
+          <li>Assistant grounded (RAG) sur le guide officiel — pas de conseils "libres" non vérifiés</li>
+          <li>Détection de mots-clés sensibles → orientation vers facilitateur/ligne d'écoute</li>
+          <li>Multilingue (français, anglais, langues locales à ajouter en pilote)</li>
+          <li>Même logique disponible sur WhatsApp/SMS pour les téléphones basiques</li>
+        </ul>
+        <div class="badge-row">
+          <span class="pill p">Critère : Pertinence locale</span>
+          <span class="pill c">Critère : Accessibilité</span>
+          <span class="pill p">Critère : Handicap (audio/TTS)</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ ADMIN ============ -->
+  <section class="view" id="view-admin">
+    <div class="section-head">
+      <div class="eyebrow">Acteur 3 — MINPROFF / UNICEF</div>
+      <h2>Piloter la mise à l'échelle nationale en temps réel</h2>
+      <p>Tableau de bord institutionnel : couverture géographique, progression des facilitateurs, parents touchés, alertes terrain.</p>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi-card"><div class="lbl">Facilitateurs actifs</div><div class="val" id="k1">0</div><div class="delta">+18 ce mois</div></div>
+      <div class="kpi-card"><div class="lbl">Parents touchés</div><div class="val" id="k2">0</div><div class="delta">+612 ce mois</div></div>
+      <div class="kpi-card"><div class="lbl">Taux de complétion</div><div class="val" id="k3">0%</div><div class="delta">+4 pts</div></div>
+      <div class="kpi-card"><div class="lbl">Régions couvertes</div><div class="val" id="k4">0/10</div><div class="delta">Extrême-Nord en cours</div></div>
+    </div>
+
+    <div class="dash-grid">
+      <div>
+        <div class="panel">
+          <h3>Couverture par région <small>Parents touchés</small></h3>
+          <div class="region-row"><div class="name">Centre</div><div class="region-bar"><i style="width:88%;background:var(--primary)"></i></div><div class="num">1 240</div></div>
+          <div class="region-row"><div class="name">Littoral</div><div class="region-bar"><i style="width:74%;background:var(--primary)"></i></div><div class="num">980</div></div>
+          <div class="region-row"><div class="name">Sud</div><div class="region-bar"><i style="width:60%;background:var(--primary)"></i></div><div class="num">790</div></div>
+          <div class="region-row"><div class="name">Ouest</div><div class="region-bar"><i style="width:47%;background:var(--clay)"></i></div><div class="num">560</div></div>
+          <div class="region-row"><div class="name">Nord-Ouest</div><div class="region-bar"><i style="width:30%;background:var(--clay)"></i></div><div class="num">340</div></div>
+          <div class="region-row"><div class="name">Extrême-Nord</div><div class="region-bar"><i style="width:14%;background:var(--gold)"></i></div><div class="num">140</div></div>
+        </div>
+        <div class="panel">
+          <h3>Parents formés (cumulés) <small>6 derniers mois</small></h3>
+          <svg class="trend-svg" viewBox="0 0 400 150" preserveAspectRatio="none">
+            <polyline points="0,130 70,118 140,100 210,78 280,48 350,20 400,10" fill="none" stroke="#1E4B8F" stroke-width="3"/>
+            <polygon points="0,130 70,118 140,100 210,78 280,48 350,20 400,10 400,150 0,150" fill="#1E4B8F" opacity="0.08"/>
+          </svg>
+        </div>
+      </div>
+      <div>
+        <div class="panel">
+          <h3>Alertes terrain</h3>
+          <div class="alert-item">⚠️ Extrême-Nord : connectivité faible détectée — bascule automatique en mode SMS recommandée</div>
+          <div class="alert-item">⚠️ 3 signalements en attente de suivi par un facilitateur local</div>
+          <div class="alert-item ok">✅ Nord-Ouest : objectif mensuel de sessions atteint</div>
+        </div>
+        <div class="panel">
+          <h3>Activité récente</h3>
+          <div class="activity-item"><div class="activity-dot"></div>Marie N. a validé le Module 5 — Ébolowa</div>
+          <div class="activity-item"><div class="activity-dot"></div>Nouvelle cohorte créée — Bafia Village (12 parents)</div>
+          <div class="activity-item"><div class="activity-dot"></div>48 parents ont complété le module « 1000 premiers jours »</div>
+          <div class="activity-item"><div class="activity-dot"></div>Facilitateur certifié 7/7 — Douala Nord</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+function switchRole(role){
+  document.querySelectorAll('.switcher button').forEach(b=>b.classList.toggle('active', b.dataset.role===role));
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-'+role).classList.add('active');
+  if(role==='admin') animateKPIs();
+}
+document.querySelectorAll('.switcher button').forEach(b=>b.addEventListener('click',()=>switchRole(b.dataset.role)));
+
+function goScreen(prefix, screenId){
+  const phone = document.querySelector('#view-facilitateur .phone');
+  phone.querySelectorAll('.app-screen').forEach(s=>s.classList.toggle('active', s.dataset.screen===screenId));
+}
+
+const canned = {
+  "Conseil du jour":"🌞 Aujourd'hui : prenez 5 minutes rien que pour jouer avec votre enfant, sans écran ni distraction. Ce moment renforce le lien et la confiance (Module 2 du guide).",
+  "Poser une question":"Bien sûr, posez votre question ci-dessous 👇 — je réponds uniquement à partir du guide officiel MINPROFF.",
+  "Besoin d’aide urgente":"🚨 Je vous mets en relation avec votre facilitatrice locale (Marie N., Ébolowa Centre) et la ligne d'écoute nationale. Restez en sécurité, de l'aide arrive."
+};
+function chatReply(btn, key){
+  const body = document.getElementById('chatBody');
+  btn.parentElement.remove();
+  const u = document.createElement('div'); u.className='bubble user'; u.textContent=key;
+  body.appendChild(u);
+  setTimeout(()=>{
+    const b = document.createElement('div'); b.className='bubble bot'; b.textContent=canned[key]||"…";
+    body.appendChild(b); body.scrollTop = body.scrollHeight;
+  },500);
+  body.scrollTop = body.scrollHeight;
+}
+function sendTyped(){
+  const input = document.getElementById('chatInput');
+  if(!input.value.trim()) return;
+  const body = document.getElementById('chatBody');
+  const u = document.createElement('div'); u.className='bubble user'; u.textContent=input.value;
+  body.appendChild(u);
+  const q = input.value; input.value='';
+  setTimeout(()=>{
+    const b = document.createElement('div'); b.className='bubble bot';
+    b.textContent = "Merci pour votre message. Voici ce que dit le guide officiel sur ce sujet — un facilitateur peut aussi vous accompagner si besoin.";
+    body.appendChild(b); body.scrollTop = body.scrollHeight;
+  },600);
+  body.scrollTop = body.scrollHeight;
+}
+
+let kpiDone=false;
+function animateKPIs(){
+  if(kpiDone) return; kpiDone=true;
+  countUp('k1',128); countUp('k2',4320); countUp('k3',68,'%'); countUp('k4',6,'/10',true);
+}
+function countUp(id, target, suffix='', prefixSlash=false){
+  const el = document.getElementById(id);
+  let cur=0; const step=Math.max(1,Math.round(target/40));
+  const t=setInterval(()=>{
+    cur+=step;
+    if(cur>=target){cur=target;clearInterval(t);}
+    el.textContent = prefixSlash ? cur+suffix : cur.toLocaleString('fr-FR')+suffix;
+  },20);
+}
+</script>
+</body>
+</html>
