@@ -95,20 +95,21 @@ export async function getPublicCompletionCount() {
 
 export async function signUpFacilitator({ email, password, fullName, zoneCode }) {
   if (!supabase) return { ok: false, error: 'Base non configurée' };
-  const { data, error } = await supabase.auth.signUp({ email, password });
+
+  // On ne fait PLUS d'insert manuel dans `profiles` ici : la ligne est créée
+  // automatiquement côté base par un trigger (voir supabase.sql,
+  // handle_new_user), à partir des métadonnées passées ci-dessous. Ça évite un
+  // échec RLS classique : si la confirmation email est activée, il n'y a pas
+  // encore de session juste après signUp(), donc un insert direct depuis le
+  // client échouerait ("new row violates row-level security policy"). Le
+  // trigger, lui, s'exécute côté serveur et fonctionne dans tous les cas.
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: { data: { full_name: fullName, zone_code: zoneCode || '' } }
+  });
   if (error) return { ok: false, error: error.message };
 
-  // Le compte créé ici est TOUJOURS role='facilitateur' + status='en_attente' :
-  // même si ce code était modifié pour envoyer autre chose, la policy RLS
-  // "self-signup is locked to facilitateur + en_attente" côté base rejetterait
-  // l'insertion. Un admin doit explicitement approuver le compte (voir
-  // setProfileStatus) avant qu'il ne puisse voir la moindre donnée réelle.
-  const { error: profileError } = await supabase.from('profiles').insert({
-    id: data.user.id,
-    full_name: fullName,
-    zone_code: zoneCode
-  });
-  if (profileError) return { ok: false, error: profileError.message };
   return { ok: true, needsEmailConfirm: !data.session };
 }
 

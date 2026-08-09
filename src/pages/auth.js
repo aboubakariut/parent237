@@ -26,12 +26,19 @@ export async function renderAuth(root) {
               <input type="text" name="fullName" required placeholder="Ex : Awa Ngo Bakoa" />
             </label>
             <label class="field">
-              <span>Zone d'intervention</span>
-              <select name="zoneCode" required>
-                <option value="" disabled selected>Choisissez votre zone</option>
+              <span>Zone d'intervention ${zones.length ? '' : '(optionnel — aucune zone configurée pour le moment)'}</span>
+              <select name="zoneCode" ${zones.length ? 'required' : ''} ${!zones.length ? 'disabled' : ''}>
+                <option value="" ${zones.length ? 'disabled selected' : 'selected'}>${zones.length ? 'Choisissez votre zone' : 'Aucune zone disponible'}</option>
                 ${zones.map(z => `<option value="${z.code}">${z.label}</option>`).join('')}
               </select>
-              ${!zones.length ? '<span class="muted" style="font-weight:400;">Aucune zone disponible — contactez un administrateur.</span>' : ''}
+              ${!zones.length ? `
+                <span class="muted" style="font-weight:400;">
+                  Aucune zone n'existe encore en base. Votre compte sera créé sans zone — un
+                  administrateur pourra vous en assigner une plus tard depuis /admin.
+                  (Si vous créez le tout premier compte admin, c'est normal et sans conséquence :
+                  ce champ ne sert plus une fois le compte élevé en admin.)
+                </span>
+              ` : ''}
             </label>
             <p class="muted" style="margin-top:-6px;">
               Votre compte sera <strong>en attente</strong> jusqu'à validation par un administrateur
@@ -79,7 +86,7 @@ export async function renderAuth(root) {
         email: form.get('email'),
         password: form.get('password'),
         fullName: form.get('fullName'),
-        zoneCode: form.get('zoneCode')
+        zoneCode: form.get('zoneCode') || null
       });
     }
 

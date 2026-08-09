@@ -45,11 +45,16 @@ create table if not exists profiles (
 
 alter table profiles enable row level security;
 
--- Chacun peut créer son propre profil à l'inscription — MAIS le "with check"
--- verrouille les colonnes sensibles : impossible de s'auto-déclarer autre chose
--- que 'facilitateur' / 'en_attente', même en appelant l'API directement en
--- contournant le formulaire (donc même quelqu'un qui lit ce code ne peut pas
--- s'auto-promouvoir admin ou se marquer "validé").
+-- IMPORTANT : la ligne profiles n'est PLUS créée depuis le front (voir plus bas
+-- le trigger handle_new_user). Ça évite un piège classique de Supabase : si la
+-- confirmation email est activée, signUp() ne donne pas de session immédiate,
+-- donc un insert profiles tenté juste après échouerait côté RLS (l'utilisateur
+-- n'est encore "authenticated" pour personne). Le trigger, lui, s'exécute côté
+-- serveur avec les droits du propriétaire de la table, donc fonctionne dans
+-- tous les cas — session confirmée ou non.
+-- On garde quand même une policy d'insert restrictive, pour qu'une tentative
+-- d'insert directe depuis le client (contournant le trigger) reste bloquée
+-- sauf si elle respecte les mêmes règles.
 create policy "self-signup is locked to facilitateur + en_attente"
   on profiles for insert
   to authenticated
@@ -95,6 +100,35 @@ create policy "admins can update any profile"
   with check (
     exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'admin' and p.status = 'valide')
   );
+
+-- ---------- Création automatique du profil à l'inscription (trigger) ----------
+-- Dès qu'une ligne apparaît dans auth.users (= quelqu'un s'inscrit, même sans
+-- avoir confirmé son email), Postgres crée automatiquement la ligne profiles
+-- correspondante. "security definer" = s'exécute avec les droits du créateur
+-- de la fonction, donc n'est jamais bloqué par une policy RLS liée à la
+-- session de l'utilisateur qui s'inscrit. full_name/zone_code viennent des
+-- métadonnées passées au moment du signUp() côté client.
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.profiles (id, full_name, zone_code)
+  values (
+    new.id,
+    new.raw_user_meta_data ->> 'full_name',
+    nullif(new.raw_user_meta_data ->> 'zone_code', '')
+  );
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute procedure public.handle_new_user();
 
 create policy "admins manage zones"
   on zones for insert
