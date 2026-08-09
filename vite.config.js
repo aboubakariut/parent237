@@ -6,6 +6,7 @@ export default defineConfig(({ mode }) => ({
   plugins: [
     VitePWA({
       registerType: 'autoUpdate',
+      injectRegister: 'auto', // injecte le script d'enregistrement du SW directement dans le HTML buildé
       includeAssets: ['favicon.svg', 'icons/*.png'],
       manifest: {
         name: 'Parent+237',

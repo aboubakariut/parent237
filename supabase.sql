@@ -69,17 +69,55 @@ create policy "users can view own profile"
   to authenticated
   using (auth.uid() = id);
 
+-- ---------- Fonctions anti-récursion pour les policies "admin" ----------
+-- PROBLÈME résolu ici : une policy SELECT sur `profiles` qui interroge à
+-- nouveau `profiles` dans son propre USING déclenche une ré-évaluation de la
+-- policy pour la sous-requête, et Postgres détecte ça comme une récursion
+-- infinie → erreur 500 côté API ("infinite recursion detected in policy for
+-- relation profiles"). La solution standard Supabase : passer par une
+-- fonction "security definer". Une telle fonction s'exécute avec les droits
+-- du propriétaire de la table (postgres), qui contourne RLS par défaut sur
+-- ses propres tables — la sous-requête à l'intérieur ne redéclenche donc
+-- jamais la policy, et la récursion disparaît.
+create or replace function public.is_valid_admin()
+returns boolean
+language sql
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from profiles where id = auth.uid() and role = 'admin' and status = 'valide'
+  );
+$$;
+
+create or replace function public.is_valid_editor_or_admin()
+returns boolean
+language sql
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from profiles where id = auth.uid() and role in ('editeur','admin') and status = 'valide'
+  );
+$$;
+
+-- Renvoie la zone de l'utilisateur connecté, uniquement si son compte est
+-- approuvé — sinon NULL (donc aucune ligne ne pourra jamais matcher).
+create or replace function public.my_valid_zone()
+returns text
+language sql
+security definer
+set search_path = public
+as $$
+  select zone_code from profiles where id = auth.uid() and status = 'valide';
+$$;
+
 -- Seuls les admins APPROUVÉS peuvent voir la liste complète des profils
 -- (nécessaire pour la file d'approbation et l'annuaire des facilitateurs).
 create policy "admins can view all profiles"
   on profiles for select
   to authenticated
-  using (
-    exists (
-      select 1 from profiles p
-      where p.id = auth.uid() and p.role = 'admin' and p.status = 'valide'
-    )
-  );
+  using (is_valid_admin());
 
 -- Un utilisateur peut modifier des détails de son propre profil, mais jamais
 -- se donner un autre rôle ou se valider lui-même.
@@ -94,12 +132,8 @@ create policy "users can update own profile basics"
 create policy "admins can update any profile"
   on profiles for update
   to authenticated
-  using (
-    exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'admin' and p.status = 'valide')
-  )
-  with check (
-    exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'admin' and p.status = 'valide')
-  );
+  using (is_valid_admin())
+  with check (is_valid_admin());
 
 -- ---------- Création automatique du profil à l'inscription (trigger) ----------
 -- Dès qu'une ligne apparaît dans auth.users (= quelqu'un s'inscrit, même sans
@@ -133,23 +167,17 @@ create trigger on_auth_user_created
 create policy "admins manage zones"
   on zones for insert
   to authenticated
-  with check (
-    exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'admin' and p.status = 'valide')
-  );
+  with check (is_valid_admin());
 
 create policy "admins update zones"
   on zones for update
   to authenticated
-  using (
-    exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'admin' and p.status = 'valide')
-  );
+  using (is_valid_admin());
 
 create policy "admins delete zones"
   on zones for delete
   to authenticated
-  using (
-    exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'admin' and p.status = 'valide')
-  );
+  using (is_valid_admin());
 
 -- ---------- Table des complétions (remplie par les parents, sans compte) ----------
 create table if not exists completions (
@@ -178,12 +206,7 @@ create policy "approved facilitators see own zone, admins see all"
   on completions for select
   to authenticated
   using (
-    exists (
-      select 1 from profiles p
-      where p.id = auth.uid()
-        and p.status = 'valide'
-        and (p.role = 'admin' or p.zone_code = completions.zone_code)
-    )
+    is_valid_admin() or zone_code = my_valid_zone()
   );
 
 -- ---------- Fonction publique pour la page d'accueil (marketing) ----------
@@ -231,18 +254,8 @@ create policy "anyone can read published scenarios"
 create policy "approved editors and admins manage scenarios"
   on scenarios for all
   to authenticated
-  using (
-    exists (
-      select 1 from profiles p
-      where p.id = auth.uid() and p.status = 'valide' and p.role in ('editeur','admin')
-    )
-  )
-  with check (
-    exists (
-      select 1 from profiles p
-      where p.id = auth.uid() and p.status = 'valide' and p.role in ('editeur','admin')
-    )
-  );
+  using (is_valid_editor_or_admin())
+  with check (is_valid_editor_or_admin());
 
 -- ---------- Données de départ (les 6 modules du pilote) ----------
 insert into scenarios (id, pillar, theme, level, situation, narration, choices, published) values

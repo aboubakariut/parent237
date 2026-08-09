@@ -19,7 +19,9 @@ registerNotFound(() => navigate('/'));
 
 startRouter();
 
-// Enregistrement du service worker généré par vite-plugin-pwa (offline-first)
-if ('serviceWorker' in navigator) {
-  import('virtual:pwa-register').then(({ registerSW }) => registerSW({ immediate: true }));
-}
+// Enregistrement du service worker (offline-first).
+// vite-plugin-pwa injecte automatiquement le script d'enregistrement dans le
+// HTML buildé (injectRegister: 'auto', comportement par défaut) — pas besoin
+// d'importer 'virtual:pwa-register' manuellement ici. Cet import direct
+// provoquait une erreur CORS en production car le module virtuel n'est résolu
+// qu'au moment du build, pas à l'exécution dans le navigateur.
