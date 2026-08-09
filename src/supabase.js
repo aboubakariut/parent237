@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { toastError } from './toast.js';
 
 // La clé "anon" de Supabase est CONÇUE pour être publique — elle n'a aucun pouvoir
 // tant que les policies RLS (Row Level Security) sont bien configurées côté BD.
@@ -11,8 +12,17 @@ export const supabase = (supabaseUrl && supabaseKey)
   ? createClient(supabaseUrl, supabaseKey)
   : null;
 
+if (!supabase) {
+  // Erreur silencieuse la plus fréquente en pratique : les clés ne sont pas
+  // configurées (oubli sur Vercel, faute de frappe...). On le signale
+  // immédiatement au lieu de laisser toutes les actions échouer sans dire pourquoi.
+  toastError("Configuration Supabase manquante (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY). Rien ne peut être sauvegardé.", { duration: 8000 });
+}
+
 // Identifiant anonyme stable par appareil, stocké en local (pas de compte requis).
-function getDeviceId() {
+// Exporté : réutilisé aussi par le profil parent (parent_profiles) pour que la
+// même personne soit reconnue de façon cohérente entre ses complétions et son profil.
+export function getDeviceId() {
   let id = localStorage.getItem('p237_device_id');
   if (!id) {
     id = crypto.randomUUID();
@@ -131,17 +141,33 @@ export async function getSession() {
   return data.session;
 }
 
+// Retourne { profile, hasSession, error } plutôt que juste le profil, pour
+// que le code appelant puisse distinguer 3 cas très différents :
+//  - hasSession=false            → vraiment pas connecté → direction /connexion
+//  - hasSession=true, profile=null, error=... → connecté mais la lecture a
+//    échoué (RLS, réseau...) → il NE FAUT PAS renvoyer silencieusement vers
+//    /connexion (l'utilisateur EST connecté), il faut afficher l'erreur.
+//  - profile=objet → tout va bien.
+// C'est ce deuxième cas qui produisait un bug silencieux : avant, une erreur
+// ici renvoyait juste `null`, et le code appelant redirigeait vers /connexion
+// sans aucun message — ça ressemblait exactement à "je n'arrive pas à me
+// connecter" alors que la connexion avait réussi.
 export async function getCurrentProfile() {
-  if (!supabase) return null;
+  if (!supabase) return { profile: null, hasSession: false, error: 'Base non configurée' };
   const session = await getSession();
-  if (!session) return null;
+  if (!session) return { profile: null, hasSession: false, error: null };
+
   const { data, error } = await supabase
     .from('profiles')
     .select('*')
     .eq('id', session.user.id)
     .single();
-  if (error) return null;
-  return data;
+
+  if (error) {
+    toastError(`Impossible de charger votre profil : ${error.message}`, { duration: 7000 });
+    return { profile: null, hasSession: true, error: error.message };
+  }
+  return { profile: data, hasSession: true, error: null };
 }
 
 export function onAuthChange(callback) {
@@ -281,6 +307,31 @@ export async function setProfileStatus(id, status) {
 export async function setProfileRole(id, role) {
   if (!supabase) return { ok: false, error: 'Base non configurée' };
   const { error } = await supabase.from('profiles').update({ role }).eq('id', id);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+/* ---------------- Profil parent (nom, téléphone, région) ---------------- */
+// Les parents n'ont toujours pas de compte/mot de passe — c'est juste une
+// fiche d'identification légère, rattachée au device_id, qui sert à :
+//  1. personnaliser le certificat (savoir "à qui" il appartient) ;
+//  2. rattacher les complétions à une vraie zone (le facilitateur ne voyait
+//     jusqu'ici JAMAIS de données, car zone_code n'était jamais renseigné
+//     côté parent — corrigé en même temps que cet ajout).
+// Limite assumée : sans authentification parent, rien n'empêche
+// techniquement quelqu'un de modifier le profil d'un autre device_id via
+// l'API directement. Acceptable pour un pilote à faible sensibilité
+// (nom + téléphone, pas de données de santé), mais à muscler (OTP SMS par ex.)
+// avant un passage à l'échelle national.
+export async function upsertParentProfile({ deviceId, fullName, phone, zoneCode }) {
+  if (!supabase) return { ok: false, error: 'Base non configurée' };
+  const { error } = await supabase.from('parent_profiles').upsert({
+    device_id: deviceId,
+    full_name: fullName,
+    phone: phone || null,
+    zone_code: zoneCode || null,
+    updated_at: new Date().toISOString()
+  });
   if (error) return { ok: false, error: error.message };
   return { ok: true };
 }

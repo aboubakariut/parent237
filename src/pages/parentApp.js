@@ -2,15 +2,33 @@ import { seedScenarios, languages, pillars } from '../scenarios.js';
 import { drawScene } from '../canvasEngine.js';
 import { renderBadge, shareBadge } from '../badge.js';
 import { speak, stopSpeaking } from '../voice.js';
-import { logCompletion, flushOfflineQueue, fetchPublishedScenarios } from '../supabase.js';
+import { logCompletion, flushOfflineQueue, fetchPublishedScenarios, fetchZones, upsertParentProfile, getDeviceId } from '../supabase.js';
 import { navigate } from '../router.js';
 import { requestNotificationPermission, notifyLocal } from '../notifications.js';
+import { toastError, toastSuccess } from '../toast.js';
+import { t, isTranslationPending, voiceLangTag, localizeScenario } from '../i18n.js';
 
 let root;
 let currentLang = localStorage.getItem('p237_lang') || 'fr';
 let progress = JSON.parse(localStorage.getItem('p237_progress') || '{}');
 let sceneCleanup = null;
 let scenarios = seedScenarios; // valeur par défaut le temps du premier chargement
+
+function tr(key) { return t(key, currentLang); }
+
+function getParentProfile() {
+  return {
+    name: localStorage.getItem('p237_parent_name') || '',
+    phone: localStorage.getItem('p237_parent_phone') || '',
+    zone: localStorage.getItem('p237_parent_zone') || ''
+  };
+}
+
+function saveParentProfileLocal({ name, phone, zone }) {
+  localStorage.setItem('p237_parent_name', name);
+  localStorage.setItem('p237_parent_phone', phone || '');
+  localStorage.setItem('p237_parent_zone', zone || '');
+}
 
 // Le contenu réel vit en base (table `scenarios`, gérée par l'Éditeur).
 // On le met en cache localement pour qu'il reste disponible hors-ligne après
@@ -31,6 +49,23 @@ function saveProgress() {
   localStorage.setItem('p237_progress', JSON.stringify(progress));
 }
 
+// Bandeau honnête pour les langues pas encore traduites (fulfulde, ewondo) :
+// on affiche quand même l'app (en français) plutôt que de la bloquer, mais on
+// le dit clairement au lieu de faire semblant que c'est traduit.
+function pendingLangBanner() {
+  if (!isTranslationPending(currentLang)) return '';
+  const langLabel = languages.find(l => l.code === currentLang)?.label || currentLang;
+  return `
+    <div class="card" style="background:#FFF7E6; border:1px solid #F0DBA6;">
+      <p style="margin:0; font-size:0.86rem;">
+        <i class="fa-solid fa-language" style="color:var(--gold-deep);"></i>
+        La traduction en <strong>${langLabel}</strong> est en préparation, en attente de validation
+        par un locuteur natif. En attendant, le contenu s'affiche en français.
+      </p>
+    </div>
+  `;
+}
+
 function shell(content, activeTab) {
   if (sceneCleanup) { sceneCleanup(); sceneCleanup = null; }
   stopSpeaking();
@@ -40,13 +75,13 @@ function shell(content, activeTab) {
         <button class="icon-btn" id="homeLink" aria-label="Accueil du site"><i class="fa-solid fa-arrow-left"></i></button>
         <span class="logo-dot"></span>
         <strong>Parent+237</strong>
-        <span class="offline-pill"><i class="fa-solid ${navigator.onLine ? 'fa-wifi' : 'fa-wifi-slash'}"></i> ${navigator.onLine ? 'En ligne' : 'Hors ligne · sauvegardé'}</span>
+        <span class="offline-pill"><i class="fa-solid ${navigator.onLine ? 'fa-wifi' : 'fa-wifi-slash'}"></i> ${navigator.onLine ? tr('online') : tr('offline')}</span>
       </header>
       <main>${content}</main>
       <nav class="tabbar">
-        <button data-tab="home" class="${activeTab === 'home' ? 'active' : ''}"><span class="icon"><i class="fa-solid fa-house"></i></span>Accueil</button>
-        <button data-tab="parcours" class="${activeTab === 'parcours' ? 'active' : ''}"><span class="icon"><i class="fa-solid fa-compass"></i></span>Parcours</button>
-        <button data-tab="badge" class="${activeTab === 'badge' ? 'active' : ''}"><span class="icon"><i class="fa-solid fa-award"></i></span>Mon badge</button>
+        <button data-tab="home" class="${activeTab === 'home' ? 'active' : ''}"><span class="icon"><i class="fa-solid fa-house"></i></span>${tr('nav_home')}</button>
+        <button data-tab="parcours" class="${activeTab === 'parcours' ? 'active' : ''}"><span class="icon"><i class="fa-solid fa-compass"></i></span>${tr('nav_journey')}</button>
+        <button data-tab="badge" class="${activeTab === 'badge' ? 'active' : ''}"><span class="icon"><i class="fa-solid fa-award"></i></span>${tr('nav_badge')}</button>
       </nav>
     </div>
   `;
@@ -58,26 +93,36 @@ function shell(content, activeTab) {
 
 function screenHome() {
   const completedCount = Object.keys(progress).length;
+  const parent = getParentProfile();
   shell(`
-    <div class="eyebrow">Bienvenue</div>
-    <h1>Le coach parental accessible à tous</h1>
-    <p class="muted">Un mini-parcours de 5 minutes par semaine. Fonctionne même sans connexion.</p>
+    <div class="eyebrow">${tr('welcome')}${parent.name ? ', ' + parent.name.split(' ')[0] : ''}</div>
+    <h1>${tr('app_title')}</h1>
+    <p class="muted">${tr('app_tagline')}</p>
 
     <div class="lang-row">
       ${languages.map(l => `<button class="lang-chip ${l.code === currentLang ? 'active' : ''}" data-lang="${l.code}">${l.label}</button>`).join('')}
     </div>
 
+    ${pendingLangBanner()}
+
     <div class="card">
-      <div class="eyebrow">Votre progression</div>
+      <div class="eyebrow">${tr('progress_label')}</div>
       <div class="stat-grid">
-        <div class="stat"><div class="num">${completedCount}</div><div class="lbl">Modules terminés</div></div>
-        <div class="stat"><div class="num">${scenarios.length - completedCount}</div><div class="lbl">À découvrir</div></div>
+        <div class="stat"><div class="num">${completedCount}</div><div class="lbl">${tr('modules_done')}</div></div>
+        <div class="stat"><div class="num">${scenarios.length - completedCount}</div><div class="lbl">${tr('modules_todo')}</div></div>
       </div>
     </div>
 
-    <button class="btn btn-primary" id="startBtn">Commencer un module</button>
+    <button class="btn btn-primary" id="startBtn">${tr('start_module')}</button>
+    <button class="link-btn" id="editInfoBtn" style="display:block; margin:12px auto 0;">
+      <i class="fa-solid fa-user-pen"></i> ${tr('edit_info')}
+    </button>
   `, 'home');
 
+  document.getElementById('editInfoBtn').addEventListener('click', async () => {
+    const zones = await fetchZones();
+    screenOnboarding(zones);
+  });
   root.querySelectorAll('.lang-chip').forEach(chip => {
     chip.addEventListener('click', () => {
       currentLang = chip.dataset.lang;
@@ -90,11 +135,12 @@ function screenHome() {
 
 function screenParcours() {
   shell(`
-    <div class="eyebrow">Parcours</div>
-    <h1>Choisissez un thème</h1>
-    <p class="muted">Organisé selon les 4 piliers du Portail UNICEF consacré à la parentalité.</p>
+    <div class="eyebrow">${tr('nav_journey')}</div>
+    <h1>${tr('choose_theme')}</h1>
+    <p class="muted">${tr('taxonomy_note')}</p>
+    ${pendingLangBanner()}
     ${pillars.map(p => {
-      const items = scenarios.filter(s => s.pillar === p.id);
+      const items = scenarios.filter(s => s.pillar === p.id).map(s => localizeScenario(s, currentLang));
       if (!items.length) return '';
       return `
         <div class="pillar-block">
@@ -117,7 +163,8 @@ function screenParcours() {
 }
 
 function screenScenario(id, mood = 'tense', pickedIndex = null) {
-  const s = scenarios.find(x => x.id === id);
+  const base = scenarios.find(x => x.id === id);
+  const s = localizeScenario(base, currentLang);
   shell(`
     <div class="eyebrow">${s.theme}</div>
     <div class="scene-wrap">
@@ -125,7 +172,7 @@ function screenScenario(id, mood = 'tense', pickedIndex = null) {
     </div>
     <div class="card">
       <p>${s.situation}</p>
-      <button class="btn btn-secondary" id="listenBtn"><i class="fa-solid fa-volume-high"></i> Écouter</button>
+      <button class="btn btn-secondary" id="listenBtn"><i class="fa-solid fa-volume-high"></i> ${tr('listen')}</button>
     </div>
     <div class="btn-stack" id="choices">
       ${s.choices.map((c, i) => `
@@ -136,9 +183,9 @@ function screenScenario(id, mood = 'tense', pickedIndex = null) {
     </div>
     ${pickedIndex !== null ? `
       <div class="card">
-        <div class="eyebrow">${s.choices[pickedIndex].correct ? 'Bien vu' : 'On y réfléchit'}</div>
+        <div class="eyebrow">${s.choices[pickedIndex].correct ? tr('well_done') : tr('lets_think')}</div>
         <p>${s.choices[pickedIndex].feedback}</p>
-        <button class="btn btn-primary" id="continueBtn">Continuer</button>
+        <button class="btn btn-primary" id="continueBtn">${tr('continue_btn')}</button>
       </div>
     ` : ''}
   `, 'parcours');
@@ -146,7 +193,7 @@ function screenScenario(id, mood = 'tense', pickedIndex = null) {
   const canvas = document.getElementById('scene');
   sceneCleanup = drawScene(canvas, { mood });
 
-  document.getElementById('listenBtn').addEventListener('click', () => speak(s.narration));
+  document.getElementById('listenBtn').addEventListener('click', () => speak(s.narration, voiceLangTag(currentLang)));
 
   if (pickedIndex === null) {
     root.querySelectorAll('#choices [data-i]').forEach(btn => {
@@ -157,7 +204,11 @@ function screenScenario(id, mood = 'tense', pickedIndex = null) {
         if (chosen.correct) {
           progress[id] = true;
           saveProgress();
-          logCompletion({ scenarioId: s.id, theme: s.theme, lang: currentLang });
+          const parent = getParentProfile();
+          // On journalise toujours le thème en français (base.theme) pour que
+          // les agrégats du dashboard restent cohérents quelle que soit la
+          // langue d'affichage du parent.
+          logCompletion({ scenarioId: base.id, theme: base.theme, lang: currentLang, zoneCode: parent.zone || undefined });
           requestNotificationPermission().then((granted) => {
             if (granted) notifyLocal('Module terminé 🎉', { body: `Bravo, vous avez terminé « ${s.theme} ».` });
           });
@@ -176,26 +227,83 @@ function screenScenario(id, mood = 'tense', pickedIndex = null) {
 }
 
 function screenBadge(theme) {
-  const completedThemes = scenarios.filter(s => progress[s.id]).map(s => s.theme);
+  const completedThemes = scenarios.filter(s => progress[s.id]).map(s => localizeScenario(s, currentLang).theme);
   const latestTheme = theme || completedThemes[completedThemes.length - 1] || 'Premier pas';
   shell(`
-    <div class="eyebrow">Bravo</div>
-    <h1>Votre certificat est prêt</h1>
+    <div class="eyebrow">${tr('congrats_eyebrow')}</div>
+    <h1>${tr('certificate_ready')}</h1>
     <div class="badge-preview">
       <canvas id="badgeCanvas" width="360" height="440"></canvas>
     </div>
-    <button class="btn btn-primary" id="shareBtn"><i class="fa-brands fa-whatsapp"></i> Partager sur WhatsApp</button>
-    <p class="muted" style="text-align:center; margin-top:10px;">Chaque partage aide un autre parent à découvrir Parent+237.</p>
+    <button class="btn btn-primary" id="shareBtn"><i class="fa-brands fa-whatsapp"></i> ${tr('share_whatsapp')}</button>
+    <p class="muted" style="text-align:center; margin-top:10px;">${tr('share_note')}</p>
   `, 'badge');
 
   const canvas = document.getElementById('badgeCanvas');
+  const parent = getParentProfile();
   renderBadge(canvas, {
-    name: localStorage.getItem('p237_name') || 'Un parent de +237',
+    name: parent.name || 'Un parent de +237',
     theme: latestTheme,
     level: Object.keys(progress).length || 1
   });
   notifyLocal('Certificat prêt 🏅', { body: 'Votre certificat est prêt à être partagé sur WhatsApp.' });
   document.getElementById('shareBtn').addEventListener('click', () => shareBadge(canvas, { theme: latestTheme }));
+}
+
+function screenOnboarding(zones) {
+  const existing = getParentProfile();
+  const isEditing = !!existing.name;
+  root.innerHTML = `
+    <div class="auth-screen">
+      <div class="auth-card">
+        <div class="eyebrow">${isEditing ? tr('onboarding_edit_title') : tr('welcome')}</div>
+        <h1>${isEditing ? tr('onboarding_edit_title') : tr('onboarding_title')}</h1>
+        <p class="muted">${tr('onboarding_note')}</p>
+        <form id="onboardForm" class="form-stack">
+          <label class="field">
+            <span>${tr('name_label')}</span>
+            <input type="text" name="name" required placeholder="Ex : Marie Etoundi" value="${existing.name}" />
+          </label>
+          <label class="field">
+            <span>${tr('phone_label')}</span>
+            <input type="tel" name="phone" required placeholder="Ex : 6XX XX XX XX" value="${existing.phone}" />
+          </label>
+          <label class="field">
+            <span>${tr('region_label')}</span>
+            <select name="zone" ${zones.length ? 'required' : 'disabled'}>
+              <option value="" ${existing.zone ? '' : 'disabled selected'}>${zones.length ? tr('region_placeholder') : tr('region_none')}</option>
+              ${zones.map(z => `<option value="${z.code}" ${existing.zone === z.code ? 'selected' : ''}>${z.label}</option>`).join('')}
+            </select>
+          </label>
+          <button type="submit" class="btn btn-primary"><i class="fa-solid fa-arrow-right"></i> ${isEditing ? tr('save_btn') : tr('start_btn')}</button>
+          ${isEditing ? `<button type="button" class="link-btn" id="cancelEdit">${tr('cancel_btn')}</button>` : ''}
+        </form>
+      </div>
+    </div>
+  `;
+
+  const cancelBtn = document.getElementById('cancelEdit');
+  if (cancelBtn) cancelBtn.addEventListener('click', () => screenHome());
+
+  document.getElementById('onboardForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = new FormData(e.target);
+    const name = form.get('name').trim();
+    const phone = form.get('phone').trim();
+    const zone = form.get('zone') || '';
+
+    saveParentProfileLocal({ name, phone, zone });
+
+    const result = await upsertParentProfile({ deviceId: getDeviceId(), fullName: name, phone, zoneCode: zone });
+    if (!result.ok) {
+      // On ne bloque JAMAIS l'usage de l'app pour un souci réseau : le profil
+      // est déjà sauvegardé en local, on informe juste que la synchro attend.
+      toastError(`Profil enregistré localement (synchro en attente : ${result.error}).`);
+    } else {
+      toastSuccess('Bienvenue sur Parent+237 !');
+    }
+    screenHome();
+  });
 }
 
 const tabs = {
@@ -207,7 +315,14 @@ const tabs = {
 export async function renderParentApp(rootEl) {
   root = rootEl;
   flushOfflineQueue();
-  root.innerHTML = `<div class="dash-loading"><p class="muted">Chargement des modules…</p></div>`;
+  root.innerHTML = `<div class="dash-loading"><p class="muted">Chargement…</p></div>`;
   await loadScenarios();
+
+  const parent = getParentProfile();
+  if (!parent.name) {
+    const zones = await fetchZones();
+    screenOnboarding(zones);
+    return;
+  }
   screenHome();
 }

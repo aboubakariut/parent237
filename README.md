@@ -221,6 +221,51 @@ autorise les notifications.
 Sans ces 3 étapes, l'app fonctionne normalement — seuls les boutons "Activer
 les notifications" afficheront "indisponible", sans rien casser.
 
+## 9. Inscription parent (nom, téléphone, région)
+Toujours sans mot de passe (friction zéro conservée), mais dès la première
+ouverture, l'app demande **nom, téléphone, région**. Objectif :
+- Le certificat porte enfin le vrai nom du parent — avant, "à qui appartient
+  ce certificat" n'avait pas de réponse fiable.
+- Les complétions sont maintenant rattachées à une **vraie zone** — avant, la
+  colonne `zone_code` de `completions` restait toujours à `'non-renseigne'`,
+  donc **aucun facilitateur ne voyait jamais rien** sur son dashboard, même
+  avec des parents actifs. C'est corrigé.
+
+Stocké dans `parent_profiles` (voir migration 0002), identifié par le
+`device_id` local — pas par un compte. Modifiable à tout moment depuis
+"Modifier mes informations" sur l'accueil.
+
+## 10. Visibilité des erreurs (toasts)
+Chaque action qui peut échouer (connexion, sauvegarde de profil, publication
+de contenu, approbation d'un facilitateur...) affiche maintenant un bandeau
+visible en haut de l'écran (`src/toast.js`), succès ou erreur — plus jamais
+d'échec silencieux.
+
+**Le bug "je n'arrive pas à me connecter" expliqué** : `getCurrentProfile()`
+avalait silencieusement toute erreur de lecture du profil et renvoyait `null`,
+ce qui renvoyait l'utilisateur vers `/connexion` **sans aucun message** — alors
+que la connexion, elle, avait réussi. Ça ressemblait exactement à "je ne peux
+pas me connecter". Corrigé : la fonction distingue maintenant "pas connecté"
+de "connecté mais erreur de lecture", et affiche l'erreur réelle dans les deux
+cas (voir `src/pages/profileLoadError.js`).
+
+## 1. Traduction réelle de l'interface (i18n)
+Français et anglais sont **réellement traduits** (`src/i18n.js`) — chrome de
+l'app (boutons, titres, navigation) et contenu des modules (via la colonne
+`translations` de `scenarios`, migration 0003).
+
+Pour fulfulde et ewondo : **honnêteté assumée**. Je ne fabrique pas de
+traduction non vérifiée pour des langues que je ne maîtrise pas — l'app
+affiche un bandeau clair "traduction en préparation" et retombe sur le
+français plutôt que de risquer un contenu culturellement maladroit ou faux.
+Dès qu'un locuteur natif (MINPROFF, facilitateur local) valide un texte,
+l'Éditeur peut l'ajouter via `/editeur` → section "Traduction" (actuellement
+english uniquement dans le formulaire ; le modèle de données supporte déjà
+n'importe quelle langue, il suffira d'ajouter les mêmes champs pour ff/ew une
+fois le contenu validé).
+
+La synthèse vocale suit aussi la langue choisie (`voiceLangTag`).
+
 ## Prochaines étapes suggérées avant le 25 août
 - Enrichir `src/scenarios.js` avec les scénarios validés localement (idéalement avec un
   facilitateur MINPROFF pour la justesse culturelle) et les traductions fulfuldé/ewondo.

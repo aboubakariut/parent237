@@ -1,6 +1,7 @@
 import { navigate } from '../router.js';
 import { signIn, signUpFacilitator, getCurrentProfile, fetchZones } from '../supabase.js';
 import { renderPendingNotice } from './pendingNotice.js';
+import { toastError, toastSuccess } from '../toast.js';
 
 let mode = 'login'; // 'login' | 'signup'
 
@@ -93,6 +94,7 @@ export async function renderAuth(root) {
     if (!result.ok) {
       errorEl.textContent = result.error || "Une erreur est survenue.";
       errorEl.hidden = false;
+      toastError(result.error || "Échec de la connexion.");
       submitBtn.disabled = false;
       submitBtn.textContent = mode === 'login' ? 'Se connecter' : "S'inscrire";
       return;
@@ -102,23 +104,44 @@ export async function renderAuth(root) {
       errorEl.style.color = 'var(--leaf)';
       errorEl.textContent = "Compte créé. Vérifiez votre email pour confirmer avant de vous connecter.";
       errorEl.hidden = false;
+      toastSuccess("Compte créé — vérifiez votre email pour confirmer.");
       submitBtn.disabled = false;
       submitBtn.textContent = "S'inscrire";
       return;
     }
 
-    const profile = await getCurrentProfile();
+    const { profile, hasSession, error } = await getCurrentProfile();
+
+    if (!hasSession) {
+      // Ne devrait normalement jamais arriver juste après un signIn/signUp
+      // réussi, mais si ça arrive on le dit clairement plutôt que de boucler.
+      toastError("La session n'a pas pu être établie. Réessayez.");
+      submitBtn.disabled = false;
+      submitBtn.textContent = mode === 'login' ? 'Se connecter' : "S'inscrire";
+      return;
+    }
+
+    if (!profile) {
+      // Connecté mais lecture du profil impossible (RLS, base pas migrée...).
+      // C'est CE cas précis qui, avant, redirigeait silencieusement vers
+      // /connexion et donnait l'impression que "la connexion ne marche pas".
+      toastError(error || "Connecté, mais impossible de charger votre profil.");
+      submitBtn.disabled = false;
+      submitBtn.textContent = mode === 'login' ? 'Se connecter' : "S'inscrire";
+      return;
+    }
 
     // Un compte 'en_attente' n'a accès à aucune donnée réelle (verrouillé côté
     // base par RLS) — on l'informe clairement plutôt que de l'envoyer sur un
     // dashboard vide, ce qui serait confus.
-    if (profile && profile.status !== 'valide') {
+    if (profile.status !== 'valide') {
       renderPendingNotice(root, profile);
       return;
     }
 
-    const destination = profile?.role === 'admin' ? '/admin'
-      : profile?.role === 'editeur' ? '/editeur'
+    toastSuccess('Connexion réussie.');
+    const destination = profile.role === 'admin' ? '/admin'
+      : profile.role === 'editeur' ? '/editeur'
       : '/facilitateur';
     navigate(destination);
   });

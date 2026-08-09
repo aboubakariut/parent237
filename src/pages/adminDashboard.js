@@ -5,13 +5,16 @@ import {
   fetchZones, createZone
 } from '../supabase.js';
 import { renderPendingNotice } from './pendingNotice.js';
+import { renderProfileLoadError } from './profileLoadError.js';
 import { subscribeToPush } from '../notifications.js';
+import { toastSuccess, toastError } from '../toast.js';
 
 export async function renderAdminDashboard(root) {
   root.innerHTML = `<div class="dash-loading"><p class="muted">Chargement…</p></div>`;
 
-  const profile = await getCurrentProfile();
-  if (!profile) { navigate('/connexion'); return; }
+  const { profile, hasSession, error } = await getCurrentProfile();
+  if (!hasSession) { navigate('/connexion'); return; }
+  if (!profile) { renderProfileLoadError(root, error, () => renderAdminDashboard(root)); return; }
 
   // Verrou d'accès direct par URL : même un compte "admin" en base doit être
   // status='valide' pour accéder au dashboard (voir README > créer un admin).
@@ -140,13 +143,17 @@ export async function renderAdminDashboard(root) {
 
   root.querySelectorAll('[data-approve]').forEach(btn => {
     btn.addEventListener('click', async () => {
-      await setProfileStatus(btn.dataset.approve, 'valide');
+      const result = await setProfileStatus(btn.dataset.approve, 'valide');
+      if (!result.ok) { toastError(result.error || "Échec de l'approbation."); return; }
+      toastSuccess('Facilitateur approuvé.');
       renderAdminDashboard(root);
     });
   });
   root.querySelectorAll('[data-reject]').forEach(btn => {
     btn.addEventListener('click', async () => {
-      await setProfileStatus(btn.dataset.reject, 'refuse');
+      const result = await setProfileStatus(btn.dataset.reject, 'refuse');
+      if (!result.ok) { toastError(result.error || "Échec du refus."); return; }
+      toastSuccess('Demande refusée.');
       renderAdminDashboard(root);
     });
   });
@@ -159,8 +166,10 @@ export async function renderAdminDashboard(root) {
     if (!result.ok) {
       errorEl.textContent = result.error || "Erreur lors de l'ajout.";
       errorEl.hidden = false;
+      toastError(result.error || "Erreur lors de l'ajout de la zone.");
       return;
     }
+    toastSuccess('Zone ajoutée.');
     renderAdminDashboard(root);
   });
 }

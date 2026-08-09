@@ -342,6 +342,17 @@ main { flex: 1; padding: 20px 20px 96px; }
   gap: 10px;
   margin-bottom: 4px;
 }
+.translation-block {
+  border: 1px solid #E7DFC9;
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+}
+.translation-block summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
 .error-msg { color: var(--danger); font-size: 0.85rem; margin: -4px 0 0; }
 
 /* ---------- Dashboards ---------- */

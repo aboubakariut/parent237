@@ -4,14 +4,17 @@ import {
   getCurrentProfile, fetchAllScenariosForEditor, upsertScenario, deleteScenario, signOut
 } from '../supabase.js';
 import { renderPendingNotice } from './pendingNotice.js';
+import { renderProfileLoadError } from './profileLoadError.js';
+import { toastSuccess, toastError } from '../toast.js';
 
 let editingId = null; // null = formulaire vide (création)
 
 export async function renderContentEditor(root) {
   root.innerHTML = `<div class="dash-loading"><p class="muted">Chargement…</p></div>`;
 
-  const profile = await getCurrentProfile();
-  if (!profile) { navigate('/connexion'); return; }
+  const { profile, hasSession, error } = await getCurrentProfile();
+  if (!hasSession) { navigate('/connexion'); return; }
+  if (!profile) { renderProfileLoadError(root, error, () => renderContentEditor(root)); return; }
   if (profile.status !== 'valide') { renderPendingNotice(root, profile); return; }
   if (!['editeur', 'admin'].includes(profile.role)) {
     navigate(profile.role === 'admin' ? '/admin' : '/facilitateur');
@@ -104,6 +107,43 @@ export async function renderContentEditor(root) {
             <span>Publié (visible immédiatement dans l'app parent)</span>
           </label>
 
+          <details class="translation-block">
+            <summary><i class="fa-solid fa-language"></i> Traduction anglaise (optionnelle)</summary>
+            <div class="form-stack" style="margin-top:12px;">
+              <label class="field">
+                <span>Theme (EN)</span>
+                <input name="en_theme" value="${editing?.translations?.en?.theme || ''}" placeholder="Leave empty to keep French" />
+              </label>
+              <label class="field">
+                <span>Situation (EN)</span>
+                <textarea name="en_situation" rows="2">${editing?.translations?.en?.situation || ''}</textarea>
+              </label>
+              <label class="field">
+                <span>Narration (EN)</span>
+                <textarea name="en_narration" rows="2">${editing?.translations?.en?.narration || ''}</textarea>
+              </label>
+              ${[0, 1, 2].map(i => {
+                const c = editing?.translations?.en?.choices?.[i] || {};
+                return `
+                <div class="choice-editor">
+                  <label class="field">
+                    <span>Choice ${i + 1} — text (EN)</span>
+                    <input name="en_choice${i}_text" value="${c.text || ''}" />
+                  </label>
+                  <label class="field">
+                    <span>Choice ${i + 1} — feedback (EN)</span>
+                    <textarea name="en_choice${i}_feedback" rows="2">${c.feedback || ''}</textarea>
+                  </label>
+                </div>
+              `;
+              }).join('')}
+              <p class="muted" style="font-size:0.82rem;">
+                Laissez vide pour que l'app affiche le français par défaut à ces utilisateurs.
+                Les choix EN reprennent automatiquement la bonne réponse définie ci-dessus.
+              </p>
+            </div>
+          </details>
+
           <p class="error-msg" id="formError" hidden></p>
           <div class="hero-actions">
             <button type="submit" class="btn btn-primary">${editing ? 'Enregistrer les modifications' : 'Publier le module'}</button>
@@ -150,7 +190,9 @@ export async function renderContentEditor(root) {
   root.querySelectorAll('[data-delete]').forEach(btn => {
     btn.addEventListener('click', async () => {
       if (!confirm('Supprimer définitivement ce module ?')) return;
-      await deleteScenario(btn.dataset.delete);
+      const result = await deleteScenario(btn.dataset.delete);
+      if (!result.ok) { toastError(result.error || 'Échec de la suppression.'); return; }
+      toastSuccess('Module supprimé.');
       renderContentEditor(root);
     });
   });
@@ -168,6 +210,26 @@ export async function renderContentEditor(root) {
       correct: i === correctIndex
     }));
 
+    // Traduction anglaise : uniquement si au moins le thème EN est renseigné,
+    // sinon on ne stocke rien pour cette langue (l'app retombera sur le
+    // français, plutôt que d'afficher des champs vides).
+    const enTheme = form.get('en_theme')?.trim();
+    const translations = editing?.translations ? { ...editing.translations } : {};
+    if (enTheme) {
+      translations.en = {
+        theme: enTheme,
+        situation: form.get('en_situation')?.trim() || '',
+        narration: form.get('en_narration')?.trim() || '',
+        choices: [0, 1, 2].map(i => ({
+          text: form.get(`en_choice${i}_text`)?.trim() || '',
+          feedback: form.get(`en_choice${i}_feedback`)?.trim() || '',
+          correct: i === correctIndex
+        }))
+      };
+    } else {
+      delete translations.en;
+    }
+
     const payload = {
       id: form.get('id').trim(),
       pillar: form.get('pillar'),
@@ -176,6 +238,7 @@ export async function renderContentEditor(root) {
       situation: form.get('situation'),
       narration: form.get('narration'),
       choices,
+      translations,
       published: form.get('published') === 'on',
       updated_at: new Date().toISOString()
     };
@@ -184,8 +247,10 @@ export async function renderContentEditor(root) {
     if (!result.ok) {
       errorEl.textContent = result.error || 'Erreur lors de la publication.';
       errorEl.hidden = false;
+      toastError(result.error || 'Erreur lors de la publication.');
       return;
     }
+    toastSuccess(editingId ? 'Module mis à jour.' : 'Module publié.');
     editingId = null;
     renderContentEditor(root);
   });

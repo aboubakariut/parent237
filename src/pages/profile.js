@@ -3,12 +3,15 @@ import {
   getCurrentProfile, getCurrentEmail, updateOwnProfile, changePassword,
   fetchZones, signOut
 } from '../supabase.js';
+import { renderProfileLoadError } from './profileLoadError.js';
+import { toastSuccess, toastError } from '../toast.js';
 
 export async function renderProfile(root) {
   root.innerHTML = `<div class="dash-loading"><p class="muted">Chargement…</p></div>`;
 
-  const profile = await getCurrentProfile();
-  if (!profile) { navigate('/connexion'); return; }
+  const { profile, hasSession, error } = await getCurrentProfile();
+  if (!hasSession) { navigate('/connexion'); return; }
+  if (!profile) { renderProfileLoadError(root, error, () => renderProfile(root)); return; }
 
   const [email, zones] = await Promise.all([getCurrentEmail(), fetchZones()]);
 
@@ -90,8 +93,9 @@ export async function renderProfile(root) {
       full_name: form.get('full_name'),
       zone_code: form.get('zone_code')
     });
-    if (!result.ok) { errorEl.textContent = result.error; errorEl.hidden = false; return; }
+    if (!result.ok) { errorEl.textContent = result.error; errorEl.hidden = false; toastError(result.error); return; }
     successEl.hidden = false;
+    toastSuccess('Profil mis à jour.');
   });
 
   document.getElementById('passwordForm').addEventListener('submit', async (e) => {
@@ -101,8 +105,9 @@ export async function renderProfile(root) {
     const successEl = document.getElementById('pwSuccess');
     errorEl.hidden = true; successEl.hidden = true;
     const result = await changePassword(form.get('newPassword'));
-    if (!result.ok) { errorEl.textContent = result.error; errorEl.hidden = false; return; }
+    if (!result.ok) { errorEl.textContent = result.error; errorEl.hidden = false; toastError(result.error); return; }
     e.target.reset();
     successEl.hidden = false;
+    toastSuccess('Mot de passe mis à jour.');
   });
 }

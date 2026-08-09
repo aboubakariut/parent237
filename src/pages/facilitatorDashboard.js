@@ -1,13 +1,19 @@
 import { navigate } from '../router.js';
 import { getCurrentProfile, getAggregatedStats, signOut } from '../supabase.js';
 import { renderPendingNotice } from './pendingNotice.js';
+import { renderProfileLoadError } from './profileLoadError.js';
 
 export async function renderFacilitatorDashboard(root) {
   root.innerHTML = `<div class="dash-loading"><p class="muted">Chargement de votre espace…</p></div>`;
 
-  const profile = await getCurrentProfile();
-  if (!profile) {
+  const { profile, hasSession, error } = await getCurrentProfile();
+
+  if (!hasSession) {
     navigate('/connexion');
+    return;
+  }
+  if (!profile) {
+    renderProfileLoadError(root, error, () => renderFacilitatorDashboard(root));
     return;
   }
 
