@@ -37,7 +37,10 @@ export async function renderFacilitatorDashboard(root) {
           <h1>${profile.full_name || 'Facilitateur'}</h1>
           <p class="muted">Zone : ${profile.zone_code || 'non renseignée'}</p>
         </div>
-        <button class="link-btn" id="logoutBtn">Déconnexion</button>
+        <div class="hero-actions" style="gap:8px;">
+          <button class="link-btn" id="profileBtn"><i class="fa-solid fa-user-gear"></i> Mon profil</button>
+          <button class="link-btn" id="logoutBtn">Déconnexion</button>
+        </div>
       </header>
 
       ${stats ? `
@@ -68,5 +71,6 @@ export async function renderFacilitatorDashboard(root) {
     await signOut();
     navigate('/');
   });
+  document.getElementById('profileBtn').addEventListener('click', () => navigate('/profil'));
   document.getElementById('backParent').addEventListener('click', () => navigate('/app'));
 }

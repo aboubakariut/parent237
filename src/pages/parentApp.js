@@ -4,6 +4,7 @@ import { renderBadge, shareBadge } from '../badge.js';
 import { speak, stopSpeaking } from '../voice.js';
 import { logCompletion, flushOfflineQueue, fetchPublishedScenarios } from '../supabase.js';
 import { navigate } from '../router.js';
+import { requestNotificationPermission, notifyLocal } from '../notifications.js';
 
 let root;
 let currentLang = localStorage.getItem('p237_lang') || 'fr';
@@ -46,7 +47,6 @@ function shell(content, activeTab) {
         <button data-tab="home" class="${activeTab === 'home' ? 'active' : ''}"><span class="icon"><i class="fa-solid fa-house"></i></span>Accueil</button>
         <button data-tab="parcours" class="${activeTab === 'parcours' ? 'active' : ''}"><span class="icon"><i class="fa-solid fa-compass"></i></span>Parcours</button>
         <button data-tab="badge" class="${activeTab === 'badge' ? 'active' : ''}"><span class="icon"><i class="fa-solid fa-award"></i></span>Mon badge</button>
-        <button data-tab="facilitateur" class="${activeTab === 'facilitateur' ? 'active' : ''}"><span class="icon"><i class="fa-solid fa-chart-simple"></i></span>Espace pro</button>
       </nav>
     </div>
   `;
@@ -158,6 +158,9 @@ function screenScenario(id, mood = 'tense', pickedIndex = null) {
           progress[id] = true;
           saveProgress();
           logCompletion({ scenarioId: s.id, theme: s.theme, lang: currentLang });
+          requestNotificationPermission().then((granted) => {
+            if (granted) notifyLocal('Module terminé 🎉', { body: `Bravo, vous avez terminé « ${s.theme} ».` });
+          });
         }
       });
     });
@@ -191,14 +194,14 @@ function screenBadge(theme) {
     theme: latestTheme,
     level: Object.keys(progress).length || 1
   });
+  notifyLocal('Certificat prêt 🏅', { body: 'Votre certificat est prêt à être partagé sur WhatsApp.' });
   document.getElementById('shareBtn').addEventListener('click', () => shareBadge(canvas, { theme: latestTheme }));
 }
 
 const tabs = {
   home: screenHome,
   parcours: screenParcours,
-  badge: () => screenBadge(),
-  facilitateur: () => navigate('/connexion')
+  badge: () => screenBadge()
 };
 
 export async function renderParentApp(rootEl) {

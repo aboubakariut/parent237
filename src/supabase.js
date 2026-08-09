@@ -149,6 +149,46 @@ export function onAuthChange(callback) {
   supabase.auth.onAuthStateChange((_event, session) => callback(session));
 }
 
+export async function getCurrentEmail() {
+  const session = await getSession();
+  return session?.user?.email || null;
+}
+
+export async function updateOwnProfile({ full_name, zone_code }) {
+  if (!supabase) return { ok: false, error: 'Base non configurée' };
+  const session = await getSession();
+  if (!session) return { ok: false, error: 'Non connecté' };
+  const payload = {};
+  if (full_name !== undefined) payload.full_name = full_name;
+  if (zone_code !== undefined) payload.zone_code = zone_code || null;
+  const { error } = await supabase.from('profiles').update(payload).eq('id', session.user.id);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+export async function changePassword(newPassword) {
+  if (!supabase) return { ok: false, error: 'Base non configurée' };
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+/* ---------------- Abonnements push ---------------- */
+export async function savePushSubscription(subscription, { deviceId = null } = {}) {
+  if (!supabase) return { ok: false, error: 'Base non configurée' };
+  const session = await getSession();
+  const json = subscription.toJSON();
+  const { error } = await supabase.from('push_subscriptions').upsert({
+    profile_id: session?.user?.id || null,
+    device_id: session ? null : deviceId,
+    endpoint: json.endpoint,
+    p256dh: json.keys.p256dh,
+    auth_key: json.keys.auth
+  }, { onConflict: 'endpoint' });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
 /* ---------------- Contenu pédagogique (table `scenarios`) ---------------- */
 // Le contenu réel de l'app vit en base, pas dans le code — un Éditeur (ou un
 // admin) peut publier/corriger un module sans redéploiement. `scenarios.js`

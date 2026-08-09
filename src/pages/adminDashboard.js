@@ -5,6 +5,7 @@ import {
   fetchZones, createZone
 } from '../supabase.js';
 import { renderPendingNotice } from './pendingNotice.js';
+import { subscribeToPush } from '../notifications.js';
 
 export async function renderAdminDashboard(root) {
   root.innerHTML = `<div class="dash-loading"><p class="muted">Chargement…</p></div>`;
@@ -41,6 +42,8 @@ export async function renderAdminDashboard(root) {
 
       <div class="hero-actions" style="margin-bottom:16px;">
         <button class="btn btn-secondary" id="goEditor"><i class="fa-solid fa-pen-to-square"></i> Gérer le contenu pédagogique</button>
+        <button class="btn btn-secondary" id="goProfile"><i class="fa-solid fa-user-gear"></i> Mon profil</button>
+        <button class="btn btn-secondary" id="notifyBtn"><i class="fa-solid fa-bell"></i> Alertes push (nouvelles demandes)</button>
       </div>
 
       ${stats ? `
@@ -126,6 +129,14 @@ export async function renderAdminDashboard(root) {
 
   document.getElementById('logoutBtn').addEventListener('click', async () => { await signOut(); navigate('/'); });
   document.getElementById('goEditor').addEventListener('click', () => navigate('/editeur'));
+  document.getElementById('goProfile').addEventListener('click', () => navigate('/profil'));
+  document.getElementById('notifyBtn').addEventListener('click', async (e) => {
+    e.target.disabled = true;
+    const result = await subscribeToPush();
+    e.target.innerHTML = result.ok
+      ? '<i class="fa-solid fa-check"></i> Alertes activées'
+      : '<i class="fa-solid fa-xmark"></i> Indisponible sur cet appareil';
+  });
 
   root.querySelectorAll('[data-approve]').forEach(btn => {
     btn.addEventListener('click', async () => {

@@ -35,8 +35,13 @@ export async function renderContentEditor(root) {
       ${profile.role === 'admin' ? `
         <div class="hero-actions" style="margin-bottom:16px;">
           <button class="btn btn-secondary" id="goAdmin"><i class="fa-solid fa-chart-line"></i> Voir le tableau de bord global</button>
+          <button class="btn btn-secondary" id="goProfile"><i class="fa-solid fa-user-gear"></i> Mon profil</button>
         </div>
-      ` : ''}
+      ` : `
+        <div class="hero-actions" style="margin-bottom:16px;">
+          <button class="btn btn-secondary" id="goProfile"><i class="fa-solid fa-user-gear"></i> Mon profil</button>
+        </div>
+      `}
 
       <div class="card">
         <div class="eyebrow">${editing ? 'Modifier le module' : 'Nouveau module'}</div>
@@ -134,6 +139,7 @@ export async function renderContentEditor(root) {
   document.getElementById('logoutBtn').addEventListener('click', async () => { await signOut(); navigate('/'); });
   const goAdminBtn = document.getElementById('goAdmin');
   if (goAdminBtn) goAdminBtn.addEventListener('click', () => navigate('/admin'));
+  document.getElementById('goProfile').addEventListener('click', () => navigate('/profil'));
 
   const cancelBtn = document.getElementById('cancelEdit');
   if (cancelBtn) cancelBtn.addEventListener('click', () => { editingId = null; renderContentEditor(root); });

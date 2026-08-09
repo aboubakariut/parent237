@@ -6,6 +6,7 @@ import { renderParentApp } from './pages/parentApp.js';
 import { renderFacilitatorDashboard } from './pages/facilitatorDashboard.js';
 import { renderAdminDashboard } from './pages/adminDashboard.js';
 import { renderContentEditor } from './pages/contentEditor.js';
+import { renderProfile } from './pages/profile.js';
 
 const root = document.getElementById('app');
 
@@ -15,6 +16,7 @@ registerRoute('/app', () => renderParentApp(root));
 registerRoute('/facilitateur', () => renderFacilitatorDashboard(root));
 registerRoute('/admin', () => renderAdminDashboard(root));
 registerRoute('/editeur', () => renderContentEditor(root));
+registerRoute('/profil', () => renderProfile(root));
 registerNotFound(() => navigate('/'));
 
 startRouter();

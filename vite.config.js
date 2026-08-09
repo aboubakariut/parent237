@@ -6,7 +6,18 @@ export default defineConfig(({ mode }) => ({
   plugins: [
     VitePWA({
       registerType: 'autoUpdate',
-      injectRegister: 'auto', // injecte le script d'enregistrement du SW directement dans le HTML buildé
+      injectRegister: 'auto',
+      // injectManifest (au lieu de generateSW) : on fournit notre propre
+      // fichier service worker (src/sw.js) pour pouvoir gérer les événements
+      // 'push' et 'notificationclick' — nécessaire pour les vraies
+      // notifications push (générées automatiquement par generateSW, elles ne
+      // permettent pas d'ajouter ce genre de logique personnalisée).
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.js',
+      injectManifest: {
+        globPatterns: ['**/*.{js,css,html,svg,png,woff2}']
+      },
       includeAssets: ['favicon.svg', 'icons/*.png'],
       manifest: {
         name: 'Parent+237',
@@ -20,29 +31,6 @@ export default defineConfig(({ mode }) => ({
           { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
           { src: '/icons/icon-512-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
-        ]
-      },
-      workbox: {
-        // App-shell + assets are precached so the whole experience works offline
-        // after the very first visit. Runtime caching below adds fonts.
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'google-fonts',
-              expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 }
-            }
-          },
-          {
-            urlPattern: /^https:\/\/cdnjs\.cloudflare\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'font-awesome',
-              expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 365 }
-            }
-          }
         ]
       }
     }),

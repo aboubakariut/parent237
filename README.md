@@ -6,11 +6,12 @@ PWA offline-first pour le concours UNICEF Cameroon × MINPROFF « Parentalité P
 | Route | Public | Description |
 |---|---|---|
 | `/` | Tout le monde | Page d'accueil (landing) : présentation, compteur public d'impact, CTA |
-| `/app` | Parents (sans compte) | App parent : parcours, simulateur, badge à partager |
+| `/app` | Parents (sans compte) | App parent : parcours, simulateur, badge à partager (pas de lien vers l'espace pro — accessible uniquement via `/`) |
 | `/connexion` | Facilitateurs, Éditeurs, Admins | Connexion / inscription (email + mot de passe) |
 | `/facilitateur` | Facilitateur connecté | Dashboard filtré sur SA zone uniquement (via RLS) |
 | `/editeur` | Éditeur ou Admin connecté | **Publie et modifie les modules pédagogiques**, sans redéploiement |
 | `/admin` | Admin connecté | Dashboard global : toutes zones, liste des facilitateurs |
+| `/profil` | Tout compte pro connecté | Modifier son nom/zone, changer son mot de passe |
 
 **Qui publie les formations ?** Le rôle **Éditeur** (`/editeur`). Le contenu vit dans la table
 `scenarios` en base — pas dans le code — donc MINPROFF/UNICEF peuvent désigner une personne
@@ -47,18 +48,59 @@ cp .env.example .env.local   # puis renseignez vos clés Supabase
 npm run dev
 ```
 
-## 2. Créer la base gratuite (Supabase)
-1. Créez un compte sur supabase.com (tier gratuit, largement suffisant pour un pilote).
-2. Nouveau projet → copiez `Project URL` et `anon public key` dans `.env.local`.
-3. Dans **SQL Editor**, exécutez le contenu de `supabase.sql`.
+## 2. Connecter la base automatiquement (migrations)
+Fini le copier-coller manuel dans le SQL Editor à chaque changement. Le
+dossier `supabase/migrations/` contient le schéma complet, et `scripts/migrate.mjs`
+l'applique automatiquement **à chaque build** (donc à chaque déploiement Vercel,
+donc à chaque `git push`).
 
-## 3. Sécurité réelle (à comprendre avant de présenter au jury)
+1. Créez un compte sur supabase.com et un nouveau projet.
+2. Récupérez la **connexion Postgres directe** : Project Settings → Database →
+   Connection string → onglet "URI". Préférez la version **Transaction pooler**
+   (port 6543) pour la compatibilité avec l'environnement serverless de Vercel.
+3. Ajoutez cette URL comme `DATABASE_URL` dans `.env.local` (dev) et dans
+   Vercel → Settings → Environment Variables (prod). **Jamais préfixée `VITE_`**
+   — elle ne doit jamais atteindre le navigateur, seul le script Node de build
+   l'utilise.
+4. Testez en local : `npm run db:migrate` — vous devriez voir chaque fichier de
+   `supabase/migrations/` s'appliquer avec un message de succès.
+5. En production, c'est automatique : `npm run build` (que Vercel appelle à
+   chaque déploiement) exécute `scripts/migrate.mjs` avant de compiler l'app.
+
+**Pour ajouter un changement de schéma plus tard** : créez un nouveau fichier
+`supabase/migrations/0002_votre_nom.sql`, écrivez-le de façon idempotente
+(`create table if not exists`, `drop policy if exists` + `create policy`,
+`create or replace function`), committez et poussez — il s'appliquera tout seul
+au prochain déploiement.
+
+*(Filet de sécurité : si `DATABASE_URL` n'est pas configuré, le build continue
+normalement sans bloquer — utile en local si vous préférez encore coller le SQL
+à la main dans le dashboard Supabase pour une première prise en main.)*
+
+## 3. Le bug 500 récurrent sur `/profiles` — explication complète
+Deux causes différentes ont été corrigées, l'une après l'autre :
+1. **Récursion RLS** : une policy qui interroge `profiles` depuis l'intérieur
+   d'une policy sur `profiles` fait planter Postgres ("infinite recursion
+   detected"). Corrigé avec des fonctions `security definer`
+   (`is_valid_admin()`, etc.) — voir `supabase/migrations/0001_init.sql`.
+2. **Policy trop stricte sur la mise à jour du profil** : la version précédente
+   forçait `role = 'facilitateur'` dans le `with check`, ce qui empêchait même
+   un admin de modifier son propre nom. Remplacé par un **trigger** qui compare
+   l'ancienne et la nouvelle valeur de `role`/`status`, et bloque uniquement une
+   tentative d'auto-élévation — la policy elle-même autorise maintenant toute
+   modification de ses propres informations.
+
+Avec le système de migrations automatiques (section 2), ces deux correctifs
+s'appliquent tout seuls au prochain déploiement — plus besoin de diagnostiquer
+ça à la main.
+
+## 4. Sécurité réelle (à comprendre avant de présenter au jury)
 La clé Supabase "anon" est **conçue pour être visible côté client** — ce n'est pas une fuite.
-La vraie protection vient des **policies RLS** définies dans `supabase.sql` : elles limitent
-précisément ce qu'un visiteur anonyme peut faire (ici : ajouter une ligne, lire des agrégats).
-L'obfuscation du build (étape 4) protège votre **code métier et votre logique**, pas les clés.
+La vraie protection vient des **policies RLS** définies dans `supabase/migrations/0001_init.sql` :
+elles limitent précisément ce qu'un visiteur anonyme peut faire (ici : ajouter une ligne, lire des
+agrégats). L'obfuscation du build (étape 5) protège votre **code métier et votre logique**, pas les clés.
 
-## 4. Build obfusqué (protection du code source)
+## 5. Build obfusqué (protection du code source)
 ```bash
 npm run build
 ```
@@ -75,7 +117,7 @@ logique vraiment sensible (règles métier propriétaires, calculs de score, etc
 reste de la déplacer côté serveur (fonctions Vercel ou Supabase Edge Functions) plutôt que de
 compter sur l'obfuscation front.
 
-## 5. Déployer sur Vercel
+## 6. Déployer sur Vercel
 ```bash
 npm i -g vercel     # si pas déjà installé
 vercel               # suit les invites, lie le repo
@@ -85,6 +127,8 @@ Ou via l'interface Vercel : *Import Project* depuis GitHub, puis ajoutez dans
 **Settings → Environment Variables** :
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
+- `DATABASE_URL` (voir section 2 — déclenche les migrations automatiques à chaque déploiement)
+- `VITE_VAPID_PUBLIC_KEY` (optionnel, voir section 8 — notifications push)
 
 Le fichier `vercel.json` est déjà configuré (build command, dossier `dist`, rewrites SPA).
 
@@ -135,6 +179,47 @@ C'est le **seul** moment où vous touchez la base à la main. Après ça, tout
 passe par l'interface `/admin` : approbation des facilitateurs suivants,
 création de zones, élévation d'un compte "éditeur" (même mécanisme, à
 appliquer une seule fois pour le premier éditeur).
+
+## 7. Page Profil (tous les comptes pro)
+Accessible sur `/profil` depuis chaque dashboard ("Mon profil"). Permet de :
+- Modifier son nom et sa zone (facilitateurs uniquement pour la zone).
+- Changer son mot de passe.
+Impossible de s'y donner un autre rôle ou de s'auto-valider — verrouillé par le
+trigger `prevent_self_role_escalation` (voir section 3).
+
+## 8. Notifications push
+Deux niveaux, avec des besoins de configuration différents :
+
+**Notifications locales (déjà actives, zéro configuration)** — déclenchées par
+l'app elle-même pendant qu'elle est ouverte ou récemment fermée : "module
+terminé", "certificat prêt à partager". Fonctionnent dès que le navigateur
+autorise les notifications.
+
+**Notifications push réelles (app fermée, nécessite un déploiement)** — pour
+"votre compte a été approuvé" (facilitateur) ou "nouvelle demande en attente"
+(admin). Trois étapes, à faire une fois :
+
+1. **Générer une paire de clés VAPID** (gratuit) :
+   ```bash
+   npx web-push generate-vapid-keys
+   ```
+   Copiez la clé publique dans `VITE_VAPID_PUBLIC_KEY` (`.env.local` + Vercel).
+
+2. **Déployer la fonction serveur** (nécessite la CLI Supabase, `npm i -g supabase`) :
+   ```bash
+   supabase functions deploy send-push
+   supabase secrets set VAPID_PUBLIC_KEY=... VAPID_PRIVATE_KEY=... VAPID_SUBJECT=mailto:vous@exemple.cm
+   supabase secrets set SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=...
+   ```
+   (`SUPABASE_SERVICE_ROLE_KEY` se trouve dans Project Settings → API Keys —
+   c'est la clé **secrète**, jamais celle utilisée côté client.)
+
+3. **Créer le webhook** : Supabase → Database → Webhooks → New Webhook, table
+   `profiles`, événements `INSERT` et `UPDATE`, URL = celle de la fonction
+   déployée à l'étape 2 (affichée après le déploiement).
+
+Sans ces 3 étapes, l'app fonctionne normalement — seuls les boutons "Activer
+les notifications" afficheront "indisponible", sans rien casser.
 
 ## Prochaines étapes suggérées avant le 25 août
 - Enrichir `src/scenarios.js` avec les scénarios validés localement (idéalement avec un
